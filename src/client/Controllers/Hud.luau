@@ -22,7 +22,6 @@ function Controller.Start()
 	local Notify = Net.event("Notify")
 
 	local player = Players.LocalPlayer
-	local GREEN_LIGHT = Color3.fromRGB(150, 255, 120)
 
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "Hud"
@@ -62,15 +61,21 @@ function Controller.Start()
 
 	--------------------------------------------------------------------------- top left: coins + speed
 
-	local coinPill = UIKit.pill(topLeft, { name = "Coins", size = UDim2.fromOffset(250, 60), icon = Icons.Coin, iconScale = 1.4 })
+	local coinPill = UIKit.pill(topLeft, {
+		name = "Coins", size = UDim2.fromOffset(250, 60), icon = Icons.Coin, iconScale = 1.4,
+		top = UIKit.Themes.Gold[1], bottom = UIKit.Themes.Gold[2], pattern = "Stars", patternTransparency = 0.8, patternTile = 40,
+	})
 	local coinText = pillText(coinPill.body, "0", 58, 0.64, true)
 	coinText.Size = UDim2.new(1, -150, 0.64, 0)
 	local incomeText = UIKit.text(coinPill.body, {
 		text = "+0/s", size = UDim2.new(0, 84, 0.4, 0), position = UDim2.new(1, -12, 0.5, 0), anchor = Vector2.new(1, 0.5),
-		alignX = Enum.TextXAlignment.Right, color = GREEN_LIGHT, strokeThickness = 2.5,
+		alignX = Enum.TextXAlignment.Right, color = Color3.fromRGB(200, 255, 170), strokeThickness = 2.5,
 	})
 
-	local speedPill = UIKit.pill(topLeft, { name = "Speed", size = UDim2.fromOffset(196, 50), position = UDim2.fromOffset(0, 78), icon = Icons.Speed, iconScale = 1.35 })
+	local speedPill = UIKit.pill(topLeft, {
+		name = "Speed", size = UDim2.fromOffset(196, 50), position = UDim2.fromOffset(0, 78), icon = Icons.Speed, iconScale = 1.35,
+		top = UIKit.Themes.Blue[1], bottom = UIKit.Themes.Blue[2], pattern = "Stars", patternTransparency = 0.8, patternTile = 36,
+	})
 	local speedText = pillText(speedPill.body, "SPEED 0", 52, 0.6, true)
 
 	-- coins count up smoothly instead of jumping
@@ -142,7 +147,7 @@ function Controller.Start()
 		wrap.Parent = toastHolder
 		local pill = UIKit.pill(wrap, {
 			size = UDim2.fromOffset(width - 34, 44), position = UDim2.new(0.5, 17, 0, 0), anchor = Vector2.new(0.5, 0),
-			icon = style.icon, iconScale = 1.35, top = style.top, bottom = style.bottom,
+			icon = style.icon, iconScale = 1.35, top = style.top, bottom = style.bottom, pattern = "Stars", patternTransparency = 0.84, patternTile = 34,
 		})
 		pillText(pill.body, text, 44, 0.62, true)
 		UIKit.pop(pill.holder, 0.2)
@@ -174,11 +179,13 @@ function Controller.Start()
 	local price = UIKit.pill(shop.root, {
 		name = "Price", size = UDim2.fromOffset(100, 34), position = UDim2.new(0.5, 10, 1, 9), anchor = Vector2.new(0.5, 0.5),
 		icon = Icons.Coin, iconScale = 1.35, radius = 13,
-		top = Color3.fromRGB(255, 214, 70), bottom = Color3.fromRGB(225, 130, 15),
+		top = UIKit.Themes.Gold[1], bottom = UIKit.Themes.Gold[2],
 	})
 	price.holder.ZIndex = 6
 	local priceText = pillText(price.body, "25", 34, 0.64, true)
 
+	local shopBurst = UIKit.sunburst(shop.root, { size = UDim2.fromOffset(230, 230), color = Color3.fromRGB(255, 250, 170), transparency = 0.25, z = 0 })
+	shopBurst.Visible = false
 	local upgradeIcon = UIKit.icon(shop.root, Icons.Upgrade, { size = UDim2.fromOffset(48, 48), position = UDim2.new(1, 12, 0, -12), anchor = Vector2.new(1, 0), z = 8 })
 	upgradeIcon.Visible = false
 
@@ -195,6 +202,7 @@ function Controller.Start()
 			wasAffordable = affordable
 			UIKit.setButtonColor(shop, affordable and UIKit.Colors.Green or UIKit.Colors.Blue)
 			upgradeIcon.Visible = affordable
+			shopBurst.Visible = affordable
 			if affordable then
 				UIKit.pop(shop.face, 0.15)
 			end
@@ -239,7 +247,7 @@ function Controller.Start()
 			if ui then
 				weatherPill = UIKit.pill(topLeft, {
 					name = "Weather", size = UDim2.fromOffset(196, 46), position = UDim2.fromOffset(0, 136),
-					icon = ui.icon, iconScale = 1.4, top = ui.top, bottom = ui.bottom,
+					icon = ui.icon, iconScale = 1.4, top = ui.top, bottom = ui.bottom, pattern = "Stars", patternTransparency = 0.8, patternTile = 34,
 				})
 				weatherText = pillText(weatherPill.body, ui.name, 52, 0.58, true)
 				UIKit.pop(weatherPill.holder, 0.2)
@@ -262,7 +270,7 @@ function Controller.Start()
 
 	local carry = UIKit.pill(top, {
 		name = "Carry", size = UDim2.fromOffset(420, 62), position = UDim2.new(0.5, 22, 0, 6), anchor = Vector2.new(0.5, 0),
-		icon = Icons.Home, iconScale = 1.4, top = Color3.fromRGB(110, 220, 80), bottom = Color3.fromRGB(50, 145, 40),
+		icon = Icons.Home, iconScale = 1.4, top = UIKit.Themes.Green[1], bottom = UIKit.Themes.Green[2], pattern = "Stars", patternTransparency = 0.8, patternTile = 40,
 	})
 	local carryTitle = UIKit.text(carry.body, {
 		text = "BRING IT HOME!", bold = true, size = UDim2.new(1, -80, 0.46, 0), position = UDim2.new(0, 64, 0.08, 0), alignX = Enum.TextXAlignment.Left,

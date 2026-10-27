@@ -25,8 +25,8 @@ function Controller.Start()
 	local player = Players.LocalPlayer
 	local ClaimQuest = Net.func("ClaimQuest")
 
-	local panel = Panel.new({ name = "Quests", title = "DAILY QUESTS", icon = Icons.Quests, size = Vector2.new(640, 520) })
-	local button = Panel.sideButton({ name = "Quests", label = "QUESTS", icon = Icons.Quests, color = UIKit.Colors.Gold, order = 1, hotkey = Enum.KeyCode.Q, onClick = panel.toggle })
+	local panel = Panel.new({ name = "Quests", title = "DAILY QUESTS", icon = Icons.Quests, size = Vector2.new(596, 450), theme = "Orange" })
+	local button = Panel.sideButton({ name = "Quests", label = "QUESTS", icon = Icons.Quests, theme = "Gold", order = 1, hotkey = Enum.KeyCode.Q, onClick = panel.toggle })
 	panel.bindButton(button)
 	local c = panel.content
 
@@ -53,8 +53,13 @@ function Controller.Start()
 	layout.Parent = rows
 
 	-- bonus egg row
-	local bonus = UIKit.inset(c, { name = "Bonus", size = UDim2.new(1, 0, 0, 62), position = UDim2.new(0, 0, 1, -64), color = Color3.fromRGB(70, 45, 130), transparency = 0.15 })
-	UIKit.icon(bonus, Icons.Egg, { size = UDim2.fromOffset(70, 70), position = UDim2.new(0, -6, 0.5, 0), anchor = Vector2.new(0, 0.5), z = 6 })
+	local bonusPill = UIKit.pill(c, {
+		name = "Bonus", size = UDim2.new(1, 0, 0, 62), position = UDim2.new(0, 0, 1, -64), radius = 18,
+		top = UIKit.Themes.Purple[1], bottom = UIKit.Themes.Purple[2], pattern = "Stars", patternTransparency = 0.82, patternTile = 40,
+	})
+	local bonus = bonusPill.body
+	UIKit.sunburst(bonusPill.holder, { size = UDim2.fromOffset(130, 130), position = UDim2.new(0, 30, 0.5, 0), color = Color3.fromRGB(255, 240, 170), transparency = 0.3, z = 3 })
+	UIKit.icon(bonusPill.holder, Icons.Egg, { size = UDim2.fromOffset(74, 74), position = UDim2.new(0, -6, 0.5, 0), anchor = Vector2.new(0, 0.5), z = 6 })
 	local bonusText = UIKit.text(bonus, { text = "", bold = true, size = UDim2.new(1, -230, 0, 26), position = UDim2.new(0, 72, 0.5, 0), anchor = Vector2.new(0, 0.5), alignX = Enum.TextXAlignment.Left, z = 6 })
 	local pips: { Frame } = {}
 	for i = 1, 3 do
@@ -77,11 +82,15 @@ function Controller.Start()
 	local function questCard(i: number, e: any)
 		local def = Quests.ById[e.id]
 		local complete = e.progress >= e.goal
+		local theme = e.claimed and { Color3.fromRGB(120, 150, 130), Color3.fromRGB(70, 96, 80) } or (complete and UIKit.Themes.Green or UIKit.Themes.Blue)
 		local card = UIKit.pill(rows, {
-			name = "Quest" .. i, size = UDim2.new(1, 0, 0, 100), radius = 20,
-			top = e.claimed and Color3.fromRGB(64, 110, 72) or (complete and Color3.fromRGB(96, 180, 74) or UIKit.PanelTop),
-			bottom = e.claimed and Color3.fromRGB(38, 70, 44) or (complete and Color3.fromRGB(46, 118, 40) or UIKit.PanelBottom),
+			name = "Quest" .. i, size = UDim2.new(1, 0, 0, 100), radius = 20, top = theme[1], bottom = theme[2],
+			pattern = "Stars", patternTransparency = 0.84, patternTile = 44,
 		})
+		if complete and not e.claimed then
+			UIKit.sunburst(card.body, { size = UDim2.fromOffset(220, 220), position = UDim2.new(1, -82, 0.5, 0), color = Color3.fromRGB(255, 255, 190), transparency = 0.35, z = 2 })
+			card.body.ClipsDescendants = true
+		end
 		card.holder.LayoutOrder = i
 		-- icon tile
 		local tile = UIKit.inset(card.body, { name = "Tile", size = UDim2.fromOffset(76, 76), position = UDim2.new(0, 12, 0.5, 0), anchor = Vector2.new(0, 0.5), radius = 18, z = 4 })

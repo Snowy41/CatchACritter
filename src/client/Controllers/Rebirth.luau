@@ -21,11 +21,8 @@ function Controller.Start()
 	local PINK = Color3.fromRGB(235, 90, 170)
 	local GREY = Color3.fromRGB(110, 100, 140)
 
-	local panel = Panel.new({
-		name = "Rebirth", title = "REBIRTH", icon = Icons.Rebirth, size = Vector2.new(660, 560),
-		headerTop = Color3.fromRGB(255, 140, 210), headerBottom = Color3.fromRGB(200, 60, 140),
-	})
-	local button = Panel.sideButton({ name = "Rebirth", label = "REBIRTH", icon = Icons.Rebirth, color = PINK, order = 3, hotkey = Enum.KeyCode.R, onClick = panel.toggle })
+	local panel = Panel.new({ name = "Rebirth", title = "REBIRTH", icon = Icons.Rebirth, size = Vector2.new(616, 490), theme = "Pink" })
+	local button = Panel.sideButton({ name = "Rebirth", label = "REBIRTH", icon = Icons.Rebirth, theme = "Pink", order = 3, hotkey = Enum.KeyCode.R, onClick = panel.toggle })
 	panel.bindButton(button)
 	local c = panel.content
 
@@ -40,8 +37,14 @@ function Controller.Start()
 
 	--------------------------------------------------------------------------- hero: multiplier now -> next
 
-	local hero = UIKit.inset(c, { name = "Hero", size = UDim2.new(1, 0, 0, 104), color = Color3.fromRGB(110, 40, 100), transparency = 0.3 })
-	local levelText = UIKit.text(hero, { text = "", bold = true, size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0.5, 0, 0, 8), anchor = Vector2.new(0.5, 0), z = 6, color = Color3.fromRGB(255, 200, 235) })
+	local heroPill = UIKit.pill(c, {
+		name = "Hero", size = UDim2.new(1, 0, 0, 104), radius = 20, top = UIKit.Themes.Pink[1], bottom = UIKit.Themes.Purple[2],
+		pattern = "Stars", patternTransparency = 0.84, patternTile = 40,
+	})
+	local hero = heroPill.body
+	hero.ClipsDescendants = true
+	UIKit.sunburst(hero, { size = UDim2.fromOffset(300, 300), position = UDim2.new(0.5, 120, 0, 66), color = Color3.fromRGB(220, 255, 180), transparency = 0.35, z = 2 })
+	local levelText = UIKit.text(hero, { text = "", bold = true, size = UDim2.new(1, 0, 0, 24), position = UDim2.new(0.5, 0, 0, 8), anchor = Vector2.new(0.5, 0), z = 6 })
 	local function medal(x: number, top: Color3, bottom: Color3)
 		local m = UIKit.pill(hero, { size = UDim2.fromOffset(150, 56), position = UDim2.new(0.5, x, 0, 38), anchor = Vector2.new(0.5, 0), radius = 18, top = top, bottom = bottom })
 		m.holder.ZIndex = 6

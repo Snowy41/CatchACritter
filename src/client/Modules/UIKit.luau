@@ -1,12 +1,18 @@
--- Small UI kit for the HUD: consistent chunky "simulator" look.
---  * pills: dark gradient panel + soft drop shadow, icon overlapping the left edge
---  * 3D buttons: gradient face on a darker lip, shine sweep, hover grow, press sink
+-- Small UI kit for the HUD: bright, saturated "simulator" look.
+--  * pills: gradient panel (dark or themed colour) + soft drop shadow, icon overlapping the left
+--    edge, optional tiled pattern (shared/Textures)
+--  * 3D buttons: saturated gradient face with a star pattern on a darker lip, shine sweep, hover
+--    grow, press sink
 --  * text: bold game font with a thick dark outline, vertically centred helpers
+--  * sunbursts: spinning rays behind rewards / buyables
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local RunService = game:GetService("RunService")
+
 local Sounds = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Sounds"))
+local Textures = require(ReplicatedStorage.Shared:WaitForChild("Textures"))
 local VFX -- lazily required (VFX lives next to this module)
 local function click()
 	VFX = VFX or require(script.Parent:WaitForChild("VFX"))
@@ -18,15 +24,32 @@ local UIKit = {}
 UIKit.Font = Enum.Font.FredokaOne
 UIKit.FontBold = Enum.Font.LuckiestGuy
 UIKit.Ink = Color3.fromRGB(20, 14, 36) -- outline colour (matches the icon pack's dark outline)
-UIKit.PanelTop = Color3.fromRGB(64, 50, 110)
-UIKit.PanelBottom = Color3.fromRGB(32, 24, 60)
+UIKit.PanelTop = Color3.fromRGB(78, 58, 172)
+UIKit.PanelBottom = Color3.fromRGB(40, 26, 104)
+UIKit.Textures = Textures
 
 UIKit.Colors = {
-	Green = Color3.fromRGB(92, 214, 70),
-	Blue = Color3.fromRGB(66, 156, 255),
-	Gold = Color3.fromRGB(255, 192, 36),
-	Red = Color3.fromRGB(255, 84, 84),
-	Purple = Color3.fromRGB(170, 96, 255),
+	Green = Color3.fromRGB(70, 222, 60),
+	Blue = Color3.fromRGB(40, 150, 255),
+	Gold = Color3.fromRGB(255, 186, 0),
+	Red = Color3.fromRGB(255, 62, 72),
+	Purple = Color3.fromRGB(162, 76, 255),
+	Pink = Color3.fromRGB(255, 70, 170),
+	Orange = Color3.fromRGB(255, 132, 20),
+	Cyan = Color3.fromRGB(30, 205, 255),
+}
+
+-- Saturated two-tone gradients for panels, cards and pills (top, bottom).
+UIKit.Themes = {
+	Gold = { Color3.fromRGB(255, 214, 50), Color3.fromRGB(255, 140, 0) },
+	Orange = { Color3.fromRGB(255, 170, 50), Color3.fromRGB(240, 90, 10) },
+	Green = { Color3.fromRGB(130, 245, 80), Color3.fromRGB(30, 170, 40) },
+	Blue = { Color3.fromRGB(90, 200, 255), Color3.fromRGB(20, 110, 240) },
+	Cyan = { Color3.fromRGB(110, 240, 255), Color3.fromRGB(10, 160, 230) },
+	Purple = { Color3.fromRGB(200, 120, 255), Color3.fromRGB(110, 40, 230) },
+	Pink = { Color3.fromRGB(255, 130, 210), Color3.fromRGB(225, 30, 140) },
+	Red = { Color3.fromRGB(255, 110, 100), Color3.fromRGB(215, 30, 50) },
+	Navy = { Color3.fromRGB(70, 60, 170), Color3.fromRGB(34, 24, 96) },
 }
 
 local function darker(c: Color3, f: number): Color3
@@ -174,6 +197,10 @@ function UIKit.pill(parent: Instance, props: { [string]: any })
 	UIKit.stroke(body, 3)
 	body.Parent = holder
 
+	if props.pattern then
+		UIKit.pattern(body, props.pattern, { radius = radius, transparency = props.patternTransparency or 0.86, tile = props.patternTile })
+	end
+
 	local hl = Instance.new("Frame")
 	hl.Name = "Highlight"
 	hl.BackgroundColor3 = Color3.new(1, 1, 1)
@@ -266,6 +293,9 @@ function UIKit.button(parent: Instance, props: { [string]: any })
 	gg.Parent = gloss
 	gloss.Parent = face
 
+	if props.pattern ~= false then
+		UIKit.pattern(face, props.pattern or "Stars", { radius = radius, transparency = props.patternTransparency or 0.8, tile = props.patternTile or 46 })
+	end
 	UIKit.shineSweep(face, radius, props.shineInterval)
 
 	local hovered, pressed = false, false
@@ -342,6 +372,55 @@ function UIKit.autoScale(containers: { GuiObject })
 	end
 	camera:GetPropertyChangedSignal("ViewportSize"):Connect(update)
 	update()
+end
+
+-- Tiled white pattern over a frame (stars, studs, triangles ...), clipped to its rounded corners.
+function UIKit.pattern(parent: GuiObject, name: string, props: { [string]: any }?): ImageLabel
+	local o = props or {}
+	local img = Instance.new("ImageLabel")
+	img.Name = "Pattern"
+	img.BackgroundTransparency = 1
+	img.Image = Textures[name] or name
+	img.ScaleType = Enum.ScaleType.Tile
+	local tile = o.tile or 56
+	img.TileSize = UDim2.fromOffset(tile, tile)
+	img.ImageColor3 = o.color or Color3.new(1, 1, 1)
+	img.ImageTransparency = o.transparency or 0.85
+	img.Size = UDim2.fromScale(1, 1)
+	img.ZIndex = o.z or parent.ZIndex
+	img.Active = false
+	if o.radius then
+		UIKit.corner(img, o.radius)
+	end
+	img.Parent = parent
+	return img
+end
+
+-- Spinning sunburst rays behind an item (rewards, buyables, eggs). Returns the ImageLabel.
+local spinning: { [ImageLabel]: number } = {}
+RunService.RenderStepped:Connect(function(dt)
+	for img, speed in pairs(spinning) do
+		if img.Parent then
+			img.Rotation = (img.Rotation + speed * dt) % 360
+		else
+			spinning[img] = nil
+		end
+	end
+end)
+function UIKit.sunburst(parent: Instance, props: { [string]: any }): ImageLabel
+	local img = Instance.new("ImageLabel")
+	img.Name = "Sunburst"
+	img.BackgroundTransparency = 1
+	img.Image = Textures.Sunburst
+	img.ImageColor3 = props.color or Color3.fromRGB(255, 240, 160)
+	img.ImageTransparency = props.transparency or 0.2
+	img.Size = props.size or UDim2.fromScale(1.6, 1.6)
+	img.Position = props.position or UDim2.fromScale(0.5, 0.5)
+	img.AnchorPoint = Vector2.new(0.5, 0.5)
+	img.ZIndex = props.z or 1
+	img.Parent = parent
+	spinning[img] = props.speed or 25
+	return img
 end
 
 -- Glossy progress bar: dark rounded track, gradient fill with a highlight stripe, centred label.

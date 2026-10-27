@@ -27,16 +27,13 @@ function Controller.Start()
 	local SetTitle = Net.func("SetTitle")
 	local previews = ReplicatedStorage:WaitForChild("CritterPreviews", 30)
 
-	local panel = Panel.new({
-		name = "Critterdex", title = "CRITTERDEX", icon = Icons.Book, size = Vector2.new(780, 560),
-		headerTop = Color3.fromRGB(190, 130, 255), headerBottom = Color3.fromRGB(120, 60, 210),
-	})
-	local button = Panel.sideButton({ name = "Dex", label = "DEX", icon = Icons.Book, color = UIKit.Colors.Purple, order = 2, hotkey = Enum.KeyCode.C, onClick = panel.toggle })
+	local panel = Panel.new({ name = "Critterdex", title = "CRITTERDEX", icon = Icons.Book, size = Vector2.new(736, 490), theme = "Purple" })
+	local button = Panel.sideButton({ name = "Dex", label = "INDEX", icon = Icons.Book, theme = "Purple", order = 2, hotkey = Enum.KeyCode.C, onClick = panel.toggle })
 	panel.bindButton(button)
 	local c = panel.content
 
 	local VARIANT_COLORS: { [string]: Color3 } = {
-		Normal = Color3.fromRGB(170, 160, 210),
+		Normal = Color3.fromRGB(70, 165, 255),
 		Shiny = Color3.fromRGB(255, 235, 130), Giant = Color3.fromRGB(255, 160, 100), Tiny = Color3.fromRGB(160, 200, 255),
 		Golden = Color3.fromRGB(255, 195, 40), Frozen = Color3.fromRGB(150, 215, 255), Rainbow = Color3.fromRGB(255, 120, 220),
 	}
@@ -244,9 +241,14 @@ function Controller.Start()
 			card.BackgroundColor3 = Color3.new(1, 1, 1)
 			card.ZIndex = 5
 			UIKit.corner(card, 18)
-			UIKit.gradient(card, found and vc:Lerp(UIKit.PanelTop, 0.5) or Color3.fromRGB(48, 40, 78), found and UIKit.PanelBottom or Color3.fromRGB(26, 20, 46))
+			UIKit.gradient(card, found and vc or Color3.fromRGB(48, 40, 78), found and vc:Lerp(Color3.new(0, 0, 0), 0.45) or Color3.fromRGB(26, 20, 46))
 			UIKit.stroke(card, 3)
 			card.Parent = grid
+			card.ClipsDescendants = true
+			if found then
+				UIKit.pattern(card, "Stars", { radius = 18, transparency = 0.86, tile = 34, z = 5 })
+				UIKit.sunburst(card, { size = UDim2.fromOffset(230, 230), position = UDim2.new(0.5, 0, 0.36, 0), color = vc:Lerp(Color3.new(1, 1, 1), 0.5), transparency = 0.45, speed = 18, z = 5 })
+			end
 			-- floor glow under found critters
 			if found then
 				local glow = Instance.new("Frame")
@@ -284,8 +286,9 @@ function Controller.Start()
 		local claimed = dex.claimed[p.id] == true
 		local bar = UIKit.pill(page, {
 			name = "Reward", size = UDim2.new(1, -60, 0, 64), position = UDim2.new(0, 46, 1, -74), radius = 18, icon = Icons.Gift, iconScale = 1.35,
-			top = claimed and Color3.fromRGB(64, 110, 72) or (done and Color3.fromRGB(96, 180, 74) or Color3.fromRGB(86, 66, 150)),
-			bottom = claimed and Color3.fromRGB(38, 70, 44) or (done and Color3.fromRGB(46, 118, 40) or Color3.fromRGB(50, 36, 100)),
+			top = claimed and Color3.fromRGB(120, 150, 130) or (done and UIKit.Themes.Green[1] or UIKit.Themes.Navy[1]),
+			bottom = claimed and Color3.fromRGB(70, 96, 80) or (done and UIKit.Themes.Green[2] or UIKit.Themes.Navy[2]),
+			pattern = "Stars", patternTransparency = 0.86, patternTile = 40,
 		})
 		bar.holder.ZIndex = 6
 		local title = p.rewardTitle and Titles[p.rewardTitle]

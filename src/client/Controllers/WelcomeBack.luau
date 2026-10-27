@@ -16,12 +16,10 @@ function Controller.Start()
 
 	local ClaimWelcome = Net.func("ClaimWelcome")
 
-	local panel = Panel.new({
-		name = "WelcomeBack", title = "WELCOME BACK!", icon = Icons.Gift, size = Vector2.new(520, 360),
-		headerTop = Color3.fromRGB(130, 230, 100), headerBottom = Color3.fromRGB(50, 150, 45),
-	})
+	local panel = Panel.new({ name = "WelcomeBack", title = "WELCOME BACK!", icon = Icons.Gift, size = Vector2.new(476, 290), theme = "Green" })
 	local c = panel.content
 	local awayText = UIKit.text(c, { text = "", size = UDim2.new(1, 0, 0, 30), position = UDim2.fromOffset(0, 10), strokeThickness = 2.5, color = Color3.fromRGB(225, 215, 255) })
+	UIKit.sunburst(c, { size = UDim2.fromOffset(240, 240), position = UDim2.new(0.5, -110, 0, 112), color = Color3.fromRGB(255, 230, 120), transparency = 0.3, z = 4 })
 	local coin = UIKit.icon(c, Icons.Coin, { size = UDim2.fromOffset(96, 96), position = UDim2.new(0.5, -110, 0, 64), anchor = Vector2.new(0.5, 0) })
 	local amountText = UIKit.text(c, {
 		text = "0", bold = true, size = UDim2.new(0, 260, 0, 74), position = UDim2.new(0.5, -50, 0, 74), alignX = Enum.TextXAlignment.Left,

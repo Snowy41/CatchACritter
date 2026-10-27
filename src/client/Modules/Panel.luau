@@ -1,11 +1,12 @@
--- Menu framework: side buttons on the left edge and modal panels (one open at a time).
---   Panel.sideButton({ name, label, icon, color, order, hotkey, onClick })
+-- Menu framework: square side buttons (2-column grid, left edge) and modal panels (one open at a
+-- time), in the bright "simulator" style: saturated themed frame with a stud pattern, title bar
+-- with a big icon, dark inner area for content, red square close button.
+--   Panel.sideButton({ name, label, icon, theme, order, hotkey, onClick })
 --       -> { root, face, setBadge(n | bool), setActive(bool) }
---   Panel.new({ name, title, icon, size, headerTop, headerBottom, button })
---       -> { window, content, holder, open(), close(), toggle(), isOpen(), Opened, Closed }
---   Panel.actionButton(parent, props) -> (button, label)
--- Controllers build their own content inside `content`. Opening a panel blurs the world, slides
--- the window in and highlights its side button.
+--   Panel.new({ name, title, icon, size, theme })   size = content area size
+--       -> { window, content, holder, open(), close(), toggle(), isOpen(), bindButton(b), Opened, Closed }
+--   Panel.actionButton(parent, props) -> (button, label)   (button.wrapper can pulse)
+--   Panel.pulse(guiObject, on)
 
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
@@ -14,7 +15,6 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Icons = require(Shared:WaitForChild("Icons"))
 local Signal = require(Shared:WaitForChild("Util"):WaitForChild("Signal"))
 local Sounds = require(Shared:WaitForChild("Sounds"))
 local UIKit = require(script.Parent:WaitForChild("UIKit"))
@@ -31,19 +31,20 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
 gui.Parent = player:WaitForChild("PlayerGui")
 
-local side = UIKit.area(gui, "Side", UDim2.fromOffset(116, 450), UDim2.new(0, 26, 0.5, 50), Vector2.new(0, 0.5))
-local list = Instance.new("UIListLayout")
-list.SortOrder = Enum.SortOrder.LayoutOrder
-list.VerticalAlignment = Enum.VerticalAlignment.Center
-list.Padding = UDim.new(0, 14)
-list.Parent = side
+local side = UIKit.area(gui, "Side", UDim2.fromOffset(212, 330), UDim2.new(0, 18, 0.5, 60), Vector2.new(0, 0.5))
+local grid = Instance.new("UIGridLayout")
+grid.CellSize = UDim2.fromOffset(98, 98)
+grid.CellPadding = UDim2.fromOffset(10, 12)
+grid.SortOrder = Enum.SortOrder.LayoutOrder
+grid.VerticalAlignment = Enum.VerticalAlignment.Center
+grid.Parent = side
 
 local modalLayer = Instance.new("Frame")
 modalLayer.Name = "Modal"
 modalLayer.BackgroundTransparency = 1
 modalLayer.Size = UDim2.fromScale(1, 1)
 modalLayer.Parent = gui
-local center = UIKit.area(modalLayer, "Center", UDim2.fromOffset(760, 560), UDim2.fromScale(0.5, 0.53), Vector2.new(0.5, 0.5))
+local center = UIKit.area(modalLayer, "Center", UDim2.fromOffset(800, 600), UDim2.fromScale(0.5, 0.53), Vector2.new(0.5, 0.5))
 center.ZIndex = 2 -- above every backdrop
 UIKit.autoScale({ side, center })
 
@@ -56,7 +57,7 @@ blur.Parent = Lighting
 
 Panel.gui = gui
 
---------------------------------------------------------------------------- side buttons
+--------------------------------------------------------------------------- animation registries
 
 local pulsing: { [GuiObject]: number } = {} -- object -> pulse amplitude
 local wiggling: { [GuiObject]: boolean } = {}
@@ -69,46 +70,66 @@ RunService.RenderStepped:Connect(function()
 		end
 	end
 	for obj in pairs(wiggling) do
-		-- short wiggle every 2.5 s
-		local phase = t % 2.5
+		local phase = t % 2.5 -- short wiggle every 2.5 s
 		obj.Rotation = phase < 0.5 and math.sin(phase * 40) * 10 * (1 - phase / 0.5) or 0
 	end
 end)
 
+local function pulseScale(obj: GuiObject): UIScale
+	local s = obj:FindFirstChild("PulseScale") :: UIScale?
+	if not s then
+		s = Instance.new("UIScale")
+		;(s :: UIScale).Name = "PulseScale"
+		;(s :: UIScale).Parent = obj
+	end
+	return s :: UIScale
+end
+
+function Panel.pulse(obj: GuiObject, on: boolean)
+	local s = pulseScale(obj)
+	pulsing[obj] = on and 0.06 or nil
+	if not on then
+		s.Scale = 1
+	end
+end
+
+--------------------------------------------------------------------------- side buttons
+
 function Panel.sideButton(props: { [string]: any })
+	local theme = UIKit.Themes[props.theme or "Blue"] or UIKit.Themes.Blue
 	local slot = Instance.new("Frame")
 	slot.Name = props.name or "SideButton"
 	slot.BackgroundTransparency = 1
-	slot.Size = UDim2.fromOffset(104, 106)
 	slot.LayoutOrder = props.order or 10
 	slot.Parent = side
 
 	-- gold ring shown while the button's panel is open
 	local ring = Instance.new("Frame")
 	ring.Name = "ActiveRing"
-	ring.BackgroundColor3 = Color3.fromRGB(255, 220, 90)
-	ring.Size = UDim2.fromOffset(102, 102)
-	ring.Position = UDim2.new(0.5, 0, 0, 47)
+	ring.BackgroundColor3 = Color3.fromRGB(255, 230, 90)
+	ring.Size = UDim2.new(1, 10, 1, 10)
+	ring.Position = UDim2.new(0.5, 0, 0.5, 2)
 	ring.AnchorPoint = Vector2.new(0.5, 0.5)
 	ring.Visible = false
-	UIKit.corner(ring, 28)
+	UIKit.corner(ring, 24)
 	UIKit.stroke(ring, 3)
 	ring.Parent = slot
 
 	local b = UIKit.button(slot, {
-		name = "Button", size = UDim2.fromOffset(88, 88), position = UDim2.new(0.5, 0, 0, 44),
-		color = props.color or UIKit.Colors.Blue, radius = 24, depth = 6, shineInterval = 4 + math.random() * 2,
+		name = "Button", size = UDim2.new(1, -6, 1, -6), position = UDim2.fromScale(0.5, 0.5),
+		color = theme[2]:Lerp(theme[1], 0.35), radius = 20, depth = 6, shineInterval = 4 + math.random() * 2, patternTile = 38,
 	})
-	local icon = UIKit.icon(b.face, props.icon, { size = UDim2.fromScale(0.86, 0.86), position = UDim2.fromScale(0.5, 0.44), anchor = Vector2.new(0.5, 0.5) })
-
-	-- label tab overlapping the bottom edge (same language as the SPEED shop tab)
-	local tab = UIKit.pill(b.root, {
-		name = "Tab", size = UDim2.fromOffset(92, 26), position = UDim2.new(0.5, 0, 1, 2), anchor = Vector2.new(0.5, 0.5), radius = 10,
+	-- brighter two-tone face than the default button gradient
+	local g = b.face:FindFirstChildOfClass("UIGradient")
+	if g then
+		g.Color = ColorSequence.new(theme[1], theme[2])
+	end
+	local icon = UIKit.icon(b.face, props.icon, { size = UDim2.fromScale(0.74, 0.74), position = UDim2.fromScale(0.5, 0.42), anchor = Vector2.new(0.5, 0.5), z = 6 })
+	UIKit.text(b.face, {
+		text = props.label or "", bold = true, size = UDim2.new(1, -8, 0, 22), position = UDim2.new(0.5, 0, 1, -6),
+		anchor = Vector2.new(0.5, 1), z = 7, strokeThickness = 3,
 	})
-	tab.holder.ZIndex = 7
-	UIKit.text(tab.body, { text = props.label or "", bold = true, size = UDim2.new(1, -10, 0.7, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2 })
 
-	-- keyboard hint
 	if props.hotkey and UserInputService.KeyboardEnabled then
 		local key = UIKit.pill(b.root, { name = "Key", size = UDim2.fromOffset(26, 26), position = UDim2.new(0, -8, 0, -8), radius = 8 })
 		key.holder.ZIndex = 9
@@ -117,12 +138,10 @@ function Panel.sideButton(props: { [string]: any })
 
 	local badge = UIKit.pill(b.root, {
 		name = "Badge", size = UDim2.fromOffset(32, 32), position = UDim2.new(1, 10, 0, -10), anchor = Vector2.new(1, 0), radius = 16,
-		top = Color3.fromRGB(255, 110, 100), bottom = Color3.fromRGB(215, 40, 50),
+		top = Color3.fromRGB(255, 110, 100), bottom = Color3.fromRGB(215, 30, 50),
 	})
 	badge.holder.ZIndex = 9
-	local pulse = Instance.new("UIScale")
-	pulse.Name = "PulseScale"
-	pulse.Parent = badge.holder
+	pulseScale(badge.holder)
 	local badgeText = UIKit.text(badge.body, { text = "!", bold = true, size = UDim2.new(1, -6, 0.7, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2 })
 	badge.holder.Visible = false
 
@@ -188,8 +207,15 @@ local function setBlur(on: boolean)
 	end
 end
 
+local TITLE_H = 66
+local MARGIN = 12
+local PAD = 14
+
 function Panel.new(props: { [string]: any })
-	local size: Vector2 = props.size or Vector2.new(640, 460)
+	local inner: Vector2 = props.size or Vector2.new(600, 400)
+	local size = inner + Vector2.new(2 * (MARGIN + PAD), TITLE_H + MARGIN + 2 * PAD)
+	local theme = UIKit.Themes[props.theme or "Blue"] or UIKit.Themes.Blue
+
 	local backdrop = Instance.new("TextButton")
 	backdrop.Name = (props.name or "Panel") .. "Backdrop"
 	backdrop.Text = ""
@@ -212,49 +238,52 @@ function Panel.new(props: { [string]: any })
 	local scale = Instance.new("UIScale")
 	scale.Parent = holder
 
-	local headerTop = props.headerTop or Color3.fromRGB(255, 205, 70)
-	local window = UIKit.pill(holder, { name = "Window", size = UDim2.fromScale(1, 1), radius = 28 })
-	window.body.Active = true -- clicks inside the window never fall through to the backdrop
-	-- coloured top band that ties the window to its header colour
-	local band = Instance.new("Frame")
-	band.Name = "Band"
-	band.BackgroundColor3 = Color3.new(1, 1, 1)
-	band.Size = UDim2.new(1, 0, 0, 64)
-	band.ZIndex = 2
-	UIKit.corner(band, 28)
-	local bg = Instance.new("UIGradient")
-	bg.Rotation = 90
-	bg.Color = ColorSequence.new(headerTop:Lerp(UIKit.PanelTop, 0.55), UIKit.PanelTop)
-	bg.Transparency = NumberSequence.new(0, 1)
-	bg.Parent = band
-	band.Parent = window.body
-
-	-- header ribbon overlapping the top edge
-	local header = UIKit.pill(holder, {
-		name = "Header", size = UDim2.fromOffset(math.min(size.X - 160, 380), 58), position = UDim2.new(0.5, 0, 0, 0), anchor = Vector2.new(0.5, 0.5),
-		radius = 20, icon = props.icon, iconScale = 1.55, top = headerTop, bottom = props.headerBottom or Color3.fromRGB(225, 130, 15),
+	-- outer frame: saturated theme gradient + stud pattern, thick outline, drop shadow
+	local window = UIKit.pill(holder, {
+		name = "Window", size = UDim2.fromScale(1, 1), radius = 26, top = theme[1], bottom = theme[2],
+		pattern = "Stud", patternTransparency = 0.55, patternTile = 44,
 	})
-	header.holder.ZIndex = 8
-	UIKit.shineSweep(header.body, 20, 3)
-	UIKit.text(header.body, { text = props.title or "", bold = true, size = UDim2.new(1, -76, 0.62, 0), position = UDim2.new(0.5, 20, 0.5, 0), anchor = Vector2.new(0.5, 0.5) })
+	window.body.Active = true -- clicks inside the window never fall through to the backdrop
+	local outline = window.body:FindFirstChildOfClass("UIStroke")
+	if outline then
+		outline.Thickness = 4
+	end
 
-	local close = Instance.new("ImageButton")
-	close.Name = "Close"
-	close.BackgroundTransparency = 1
-	close.Image = Icons.Close
-	close.Size = UDim2.fromOffset(62, 62)
-	close.Position = UDim2.new(1, 16, 0, -16)
-	close.AnchorPoint = Vector2.new(1, 0)
-	close.ZIndex = 9
-	close.Parent = holder
+	-- title bar: big icon + title, left aligned
+	local iconImg = UIKit.icon(holder, props.icon, { size = UDim2.fromOffset(84, 84), position = UDim2.fromOffset(-14, -18), z = 9 })
+	iconImg.Rotation = -8
+	UIKit.text(holder, {
+		text = props.title or "", bold = true, size = UDim2.new(1, -220, 0, 40), position = UDim2.fromOffset(80, 13), z = 9,
+		alignX = Enum.TextXAlignment.Left, strokeThickness = 3.5,
+	})
+
+	-- red square close button
+	local closeBtn = UIKit.button(holder, {
+		name = "Close", size = UDim2.fromOffset(54, 54), position = UDim2.new(1, -38, 0, 34), color = UIKit.Colors.Red, radius = 14, depth = 5, pattern = false,
+	})
+	closeBtn.root.ZIndex = 9
+	UIKit.text(closeBtn.face, { text = "X", bold = true, size = UDim2.new(0.62, 0, 0.62, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), z = 7 })
+
+	-- dark inner area for content
+	local innerFrame = Instance.new("Frame")
+	innerFrame.Name = "Inner"
+	innerFrame.BackgroundColor3 = Color3.new(1, 1, 1)
+	innerFrame.Size = UDim2.new(1, -2 * MARGIN, 1, -(TITLE_H + MARGIN))
+	innerFrame.Position = UDim2.fromOffset(MARGIN, TITLE_H)
+	innerFrame.ZIndex = 3
+	UIKit.corner(innerFrame, 20)
+	UIKit.gradient(innerFrame, Color3.fromRGB(48, 36, 112), Color3.fromRGB(26, 18, 66))
+	UIKit.stroke(innerFrame, 3.5)
+	UIKit.pattern(innerFrame, "Triangles", { radius = 20, transparency = 0.94, tile = 180 })
+	innerFrame.Parent = window.body
 
 	local content = Instance.new("Frame")
 	content.Name = "Content"
 	content.BackgroundTransparency = 1
-	content.Size = UDim2.new(1, -44, 1, -70)
-	content.Position = UDim2.fromOffset(22, 48)
+	content.Size = UDim2.new(1, -2 * PAD, 1, -2 * PAD)
+	content.Position = UDim2.fromOffset(PAD, PAD)
 	content.ZIndex = 4
-	content.Parent = window.body
+	content.Parent = innerFrame
 
 	local self: any = { window = window, content = content, holder = holder, Opened = Signal.new(), Closed = Signal.new() }
 	local button = props.button
@@ -321,13 +350,7 @@ function Panel.new(props: { [string]: any })
 			self.open()
 		end
 	end
-	close.Activated:Connect(self.close)
-	close.MouseEnter:Connect(function()
-		UIKit.tween(close, 0.12, { Size = UDim2.fromOffset(70, 70), Rotation = 90 }, Enum.EasingStyle.Back)
-	end)
-	close.MouseLeave:Connect(function()
-		UIKit.tween(close, 0.12, { Size = UDim2.fromOffset(62, 62), Rotation = 0 })
-	end)
+	closeBtn.face.Activated:Connect(self.close)
 	backdrop.Activated:Connect(self.close)
 	return self
 end
@@ -346,25 +369,11 @@ function Panel.actionButton(parent: Instance, props: { [string]: any })
 	wrapper.Parent = parent
 	local b = UIKit.button(wrapper, {
 		name = "Button", size = UDim2.fromScale(1, 1), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5),
-		color = props.color or UIKit.Colors.Green, radius = props.radius or 14, depth = 5,
+		color = props.color or UIKit.Colors.Green, radius = props.radius or 14, depth = 5, patternTile = 30,
 	})
 	local label = UIKit.text(b.face, { text = props.text or "", bold = true, size = UDim2.new(1, -14, 0.6, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), z = 6 })
 	b.wrapper = wrapper
 	return b, label
-end
-
--- Makes a button breathe (scale pulse) while `on`.
-function Panel.pulse(obj: GuiObject, on: boolean)
-	local s = obj:FindFirstChild("PulseScale") :: UIScale?
-	if not s then
-		s = Instance.new("UIScale")
-		;(s :: UIScale).Name = "PulseScale"
-		;(s :: UIScale).Parent = obj
-	end
-	pulsing[obj] = on and 0.06 or nil
-	if not on then
-		(s :: UIScale).Scale = 1
-	end
 end
 
 return Panel

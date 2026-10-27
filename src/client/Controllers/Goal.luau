@@ -29,6 +29,7 @@ function Controller.Start()
 
 	local pill = UIKit.pill(area, {
 		name = "Goal", size = UDim2.fromOffset(250, 62), position = UDim2.fromOffset(0, 140), icon = Icons.Upgrade, iconScale = 1.25,
+		top = UIKit.Themes.Purple[1], bottom = UIKit.Themes.Purple[2], pattern = "Stars", patternTransparency = 0.8, patternTile = 36,
 	})
 	local title = UIKit.text(pill.body, {
 		text = "", bold = true, size = UDim2.new(1, -62, 0, 22), position = UDim2.fromOffset(48, 6), alignX = Enum.TextXAlignment.Left, strokeThickness = 2.5,
