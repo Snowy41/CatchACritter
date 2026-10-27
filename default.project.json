@@ -13,6 +13,14 @@
       "$ignoreUnknownInstances": true,
       "Shared": {
         "$path": "src/shared"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "RequestCatch": { "$className": "RemoteFunction" },
+        "SubmitCatch": { "$className": "RemoteFunction" },
+        "BuyUpgrade": { "$className": "RemoteFunction" },
+        "Notify": { "$className": "RemoteEvent" },
+        "CatchResult": { "$className": "RemoteEvent" }
       }
     },
     "StarterPlayer": {
