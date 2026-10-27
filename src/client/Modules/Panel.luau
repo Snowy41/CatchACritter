@@ -290,7 +290,7 @@ function Panel.new(props: { [string]: any })
 
 	-- red square close button
 	local closeBtn = UIKit.button(holder, {
-		name = "Close", size = UDim2.fromOffset(54, 54), position = UDim2.new(1, -38, 0, 34), color = UIKit.Colors.Red, radius = 14, depth = 5, pattern = false,
+		name = "Close", size = UDim2.fromOffset(46, 46), position = UDim2.new(1, -33, 0, 32), color = UIKit.Colors.Red, radius = 12, depth = 4, pattern = false, -- centred in the 66 px title bar, even margins (also while hovered)
 	})
 	closeBtn.root.ZIndex = 9
 	UIKit.text(closeBtn.face, { text = "X", bold = true, size = UDim2.new(0.62, 0, 0.62, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), z = 7 })
