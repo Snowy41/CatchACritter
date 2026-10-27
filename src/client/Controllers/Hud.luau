@@ -1,5 +1,5 @@
--- Player HUD: coins + speed (top left), speed shop (right), catch button + timing bar (bottom),
--- carry banner with a guide line home and toasts (top). Icons: shared/Icons (Free Icon Pack).
+-- Player HUD: coins + speed (top left), speed shop (right), carry banner with a guide line home
+-- and toasts (top). The catch button + timing bar live in Controllers/Catching.
 
 local Controller = {}
 
@@ -8,16 +8,14 @@ function Controller.Start()
 	local Players = game:GetService("Players")
 	local ReplicatedStorage = game:GetService("ReplicatedStorage")
 	local RunService = game:GetService("RunService")
-	local UserInputService = game:GetService("UserInputService")
 
 	local Shared = ReplicatedStorage:WaitForChild("Shared")
 	local Config = require(Shared:WaitForChild("Config"))
 	local Icons = require(Shared:WaitForChild("Icons"))
 	local UIKit = require(script.Parent.Parent:WaitForChild("Modules"):WaitForChild("UIKit"))
+	local Bus = require(script.Parent.Parent:WaitForChild("Modules"):WaitForChild("Bus"))
 
 	local Net = require(Shared:WaitForChild("Net"))
-	local RequestCatch = Net.func("RequestCatch")
-	local SubmitCatch = Net.func("SubmitCatch")
 	local BuyUpgrade = Net.func("BuyUpgrade")
 	local Notify = Net.event("Notify")
 
@@ -32,9 +30,8 @@ function Controller.Start()
 
 	local topLeft = UIKit.area(gui, "TopLeft", UDim2.fromOffset(300, 140), UDim2.fromOffset(44, 18), Vector2.new(0, 0))
 	local right = UIKit.area(gui, "Right", UDim2.fromOffset(140, 170), UDim2.new(1, -22, 0.5, 0), Vector2.new(1, 0.5))
-	local bottom = UIKit.area(gui, "Bottom", UDim2.fromOffset(520, 290), UDim2.new(0.5, 0, 1, -18), Vector2.new(0.5, 1))
 	local top = UIKit.area(gui, "Top", UDim2.fromOffset(560, 270), UDim2.new(0.5, 0, 0, 14), Vector2.new(0.5, 0))
-	UIKit.autoScale({ topLeft, right, bottom, top })
+	UIKit.autoScale({ topLeft, right, top })
 
 	local function formatNumber(n: number): string
 		if n >= 1e9 then
@@ -164,6 +161,7 @@ function Controller.Start()
 		end)
 	end
 	Notify.OnClientEvent:Connect(toast)
+	Bus.Toast:Connect(toast) -- toasts from other controllers (e.g. Catching)
 	-- server-wide banners (Effects) show at the top: slide the toasts below them meanwhile
 	local function placeToasts()
 		local active = player.PlayerGui:GetAttribute("AnnounceActive") == true
@@ -189,7 +187,7 @@ function Controller.Start()
 	UIKit.text(tab.body, { text = "SPEED", bold = true, size = UDim2.new(1, -10, 0.7, 0), position = UDim2.new(0.5, 0, 0.5, 0), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2 })
 
 	local price = UIKit.pill(shop.root, {
-		name = "Price", size = UDim2.fromOffset(100, 34), position = UDim2.new(0.5, 10, 1, 9), anchor = Vector2.new(0.5, 0.5),
+		name = "Price", size = UDim2.fromOffset(96, 34), position = UDim2.new(0.5, 0, 1, 9), anchor = Vector2.new(0.5, 0.5),
 		icon = Icons.Coin, iconScale = 1.35, radius = 13,
 		top = UIKit.Themes.Gold[1], bottom = UIKit.Themes.Gold[2],
 	})
@@ -380,231 +378,6 @@ function Controller.Start()
 		refreshCarry()
 	end)
 
-	--------------------------------------------------------------------------- bottom: catch button + timing bar
-
-	local catch = UIKit.button(bottom, {
-		name = "Catch", size = UDim2.fromOffset(138, 138), position = UDim2.new(0.5, 0, 1, -78),
-		color = UIKit.Colors.Green, radius = 69, depth = 8, shineInterval = 2.5,
-	})
-	UIKit.icon(catch.face, Icons.Paw, { size = UDim2.fromScale(0.58, 0.58), position = UDim2.fromScale(0.5, 0.4), anchor = Vector2.new(0.5, 0.5) })
-	local catchLabel = UIKit.text(catch.face, {
-		text = "CATCH", bold = true, size = UDim2.new(0.78, 0, 0.22, 0), position = UDim2.new(0.5, 0, 1, -16), anchor = Vector2.new(0.5, 1), z = 6,
-	})
-	local keyHint = UIKit.pill(catch.root, { name = "Key", size = UDim2.fromOffset(34, 34), position = UDim2.new(1, 6, 0, 2), anchor = Vector2.new(1, 0), radius = 10 })
-	UIKit.text(keyHint.body, { text = "E", bold = true, size = UDim2.new(1, -8, 1, -8), position = UDim2.new(0.5, 0, 0.5, 0), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2 })
-	keyHint.holder.ZIndex = 9
-	keyHint.holder.Visible = UserInputService.KeyboardEnabled
-	catch.root.Visible = false
-	local catchGlow = UIKit.glow(catch.root, { size = UDim2.fromScale(2, 2), color = Color3.fromRGB(150, 255, 120), transparency = 0.45, z = 0 })
-	local catchBurst = UIKit.sunburst(catch.root, { size = UDim2.fromScale(2.6, 2.6), color = Color3.fromRGB(255, 240, 160), transparency = 0.3, z = 0, speed = 40 })
-	catchBurst.Visible = false
-	local catchStroke: UIStroke? = nil
-	local catchPulse = Instance.new("UIScale")
-	catchPulse.Name = "CatchPulse"
-	local catchWrap = Instance.new("Frame") -- pulse wrapper so it doesn't fight the hover scale
-	catchWrap.Name = "CatchWrap"
-	catchWrap.BackgroundTransparency = 1
-	catchWrap.Size = catch.root.Size
-	catchWrap.Position = catch.root.Position
-	catchWrap.AnchorPoint = catch.root.AnchorPoint
-	catchWrap.Parent = bottom
-	catch.root.Parent = catchWrap
-	catch.root.Position = UDim2.fromScale(0.5, 0.5)
-	catch.root.AnchorPoint = Vector2.new(0.5, 0.5)
-	catchPulse.Parent = catchWrap
-	local rareTarget = false
-	local function setRareTarget(on: boolean, color: Color3?)
-		catchBurst.Visible = on
-		if color then
-			catchBurst.ImageColor3 = UIKit.lighter(color, 0.45)
-			catchGlow.ImageColor3 = UIKit.lighter(color, 0.3)
-		else
-			catchGlow.ImageColor3 = Color3.fromRGB(150, 255, 120)
-		end
-		if on and not catchStroke then
-			catchStroke = UIKit.rainbowStroke(catch.face, { thickness = 5 })
-		elseif not on and catchStroke then
-			catchStroke:Destroy()
-			catchStroke = nil
-			local own = catch.face:FindFirstChildOfClass("UIStroke")
-			if own then
-				own.Enabled = true
-			end
-		end
-	end
-
-	local targetChip = UIKit.pill(bottom, { name = "Target", size = UDim2.fromOffset(260, 38), position = UDim2.new(0.5, 0, 1, -166), anchor = Vector2.new(0.5, 1), radius = 14 })
-	local targetText = UIKit.text(targetChip.body, { text = "", size = UDim2.new(1, -24, 0.62, 0), position = UDim2.new(0.5, 0, 0.5, 0), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2.5 })
-	targetChip.holder.Visible = false
-
-	-- timing bar
-	local barRoot = UIKit.area(bottom, "TimingBar", UDim2.fromOffset(470, 96), UDim2.new(0.5, 0, 0, 0), Vector2.new(0.5, 0))
-	barRoot.Visible = false
-	local barTitle = UIKit.text(barRoot, { text = "TAP!", bold = true, size = UDim2.new(1, 0, 0, 36), position = UDim2.new() })
-	local track = UIKit.pill(barRoot, { name = "Track", size = UDim2.new(1, 0, 0, 42), position = UDim2.fromOffset(0, 46), radius = 21, top = Color3.fromRGB(26, 20, 50), bottom = Color3.fromRGB(56, 44, 96) })
-	local zone = Instance.new("Frame")
-	zone.Name = "Zone"
-	zone.BackgroundColor3 = Color3.new(1, 1, 1)
-	zone.Size = UDim2.new(0.3, 0, 1, -12)
-	zone.Position = UDim2.fromOffset(0, 6)
-	zone.ZIndex = 4
-	UIKit.corner(zone, 14)
-	UIKit.gradient(zone, Color3.fromRGB(170, 255, 130), Color3.fromRGB(70, 200, 60))
-	UIKit.stroke(zone, 2, Color3.fromRGB(210, 255, 200))
-	zone.Parent = track.body
-	local cursor = Instance.new("Frame")
-	cursor.Name = "Cursor"
-	cursor.BackgroundColor3 = Color3.new(1, 1, 1)
-	cursor.Size = UDim2.new(0, 14, 1, 20)
-	cursor.Position = UDim2.new(0, 0, 0, -10)
-	cursor.AnchorPoint = Vector2.new(0.5, 0)
-	cursor.ZIndex = 6
-	UIKit.corner(cursor, 7)
-	UIKit.stroke(cursor, 3)
-	cursor.Parent = track.body
-
-	local wildFolder = workspace:WaitForChild("WildCritters")
-	local target: Model? = nil
-	local highlight = Instance.new("Highlight")
-	highlight.FillTransparency = 1
-	highlight.OutlineColor = Color3.new(1, 1, 1)
-	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
-	highlight.Parent = workspace
-
-	type Active = { token: string, zoneStart: number, zoneSize: number, speed: number, t0: number, done: boolean }
-	local active: Active? = nil
-	local busy = false
-
-	local function cursorPos(a: Active): number
-		local x = ((os.clock() - a.t0) * a.speed) % 2 -- ping-pong 0..1
-		return x <= 1 and x or 2 - x
-	end
-
-	local function finishCatch(hit: boolean, near: boolean?)
-		local a = active
-		if not a or a.done then
-			return
-		end
-		a.done = true
-		local result = SubmitCatch:InvokeServer(a.token, hit, near == true)
-		active = nil
-		barRoot.Visible = false
-		busy = false
-		if result and result.ok then
-			if result.success then
-				-- the catch card (Effects) celebrates successful catches
-			elseif not result.near then -- near misses get their own "SO CLOSE!" moment (Effects)
-				toast("It got away!", "warn")
-			end
-		end
-	end
-
-	local function startCatch()
-		if busy or active or not target then
-			return
-		end
-		busy = true
-		local res = RequestCatch:InvokeServer(target:GetAttribute("CritterId"))
-		if not res or not res.ok then
-			busy = false
-			if res and res.reason then
-				toast(res.reason, "warn")
-			end
-			return
-		end
-		local size = math.clamp(res.zone, 0.05, 1)
-		local a: Active = {
-			token = res.token,
-			zoneStart = (size >= 1) and 0 or math.random() * (1 - size),
-			zoneSize = size,
-			speed = res.speed,
-			t0 = os.clock(),
-			done = false,
-		}
-		active = a
-		zone.Position = UDim2.new(a.zoneStart, 0, 0, 6)
-		zone.Size = UDim2.new(a.zoneSize, 0, 1, -12)
-		barTitle.Text = res.guaranteed and "EASY CATCH - TAP!" or "TAP ON GREEN!"
-		barRoot.Visible = true
-		UIKit.pop(barRoot, 0.12)
-		task.delay(Config.CatchTimeout - 1, function()
-			if active == a then
-				finishCatch(false)
-			end
-		end)
-	end
-
-	local function press()
-		local a = active
-		if a then
-			if os.clock() - a.t0 < 0.3 then
-				return -- the tap that opened the bar doesn't count as the answer
-			end
-			local x = cursorPos(a)
-			local hit = x >= a.zoneStart and x <= a.zoneStart + a.zoneSize
-			local gap = math.min(math.abs(x - a.zoneStart), math.abs(x - (a.zoneStart + a.zoneSize)))
-			finishCatch(hit, not hit and gap <= Config.NearMissMargin)
-		else
-			startCatch()
-		end
-	end
-
-	catch.face.Activated:Connect(press)
-	UserInputService.InputBegan:Connect(function(input, processed)
-		if processed then
-			return
-		end
-		if input.KeyCode == Enum.KeyCode.E or input.KeyCode == Enum.KeyCode.ButtonX then
-			press()
-		end
-	end)
-
-	RunService.RenderStepped:Connect(function()
-		if active then
-			cursor.Position = UDim2.new(cursorPos(active), 0, 0, -10)
-		end
-		local char = player.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-		local best, bestD = nil, Config.CatchRange
-		if hrp and not player:GetAttribute("Carrying") then
-			for _, m in ipairs(wildFolder:GetChildren()) do
-				if m:IsA("Model") and m.PrimaryPart then
-					local d = (m.PrimaryPart.Position - hrp.Position).Magnitude
-					if d < bestD then
-						best, bestD = m, d
-					end
-				end
-			end
-		end
-		if not active then
-			target = best
-		end
-		local shown = target ~= nil
-		if shown and not catch.root.Visible then
-			UIKit.pop(catch.face, 0.2)
-		end
-		catch.root.Visible = shown
-		catchPulse.Scale = shown and (1 + math.abs(math.sin(os.clock() * 3.5)) * (active and 0.08 or 0.04)) or 1
-		targetChip.holder.Visible = shown and not active
-		highlight.Adornee = target
-		if target then
-			catchLabel.Text = active and "NOW!" or "CATCH"
-			local rarity = target:GetAttribute("Rarity") or ""
-			local mutation = target:GetAttribute("Mutation")
-			targetText.Text = ("%s%s %s"):format(mutation and (mutation .. " ") or "", rarity, target.Name)
-			local r = Config.RarityByName[rarity]
-			targetText.TextColor3 = r and UIKit.lighter(r.color, 0.25) or Color3.new(1, 1, 1)
-			highlight.OutlineColor = r and UIKit.lighter(r.color, 0.4) or Color3.new(1, 1, 1)
-			local isRare = r ~= nil and r.tier >= 3
-			if isRare ~= rareTarget then
-				rareTarget = isRare
-				setRareTarget(isRare, r and r.color)
-			end
-		elseif rareTarget then
-			rareTarget = false
-			setRareTarget(false)
-		end
-	end)
 end
 
 return Controller

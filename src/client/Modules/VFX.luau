@@ -194,6 +194,38 @@ end
 
 -- Sound helper (cached instances under SoundService).
 local cache: { [string]: Sound } = {}
+-- Capture bubble: a shimmering sphere closes around a point, then pops with a flash.
+function VFX.capture(pos: Vector3, color: Color3, size: number?)
+	local s = size or 7
+	local ball = Instance.new("Part")
+	ball.Shape = Enum.PartType.Ball
+	ball.Anchored = true
+	ball.CanCollide = false
+	ball.CanQuery = false
+	ball.CanTouch = false
+	ball.CastShadow = false
+	ball.Material = Enum.Material.ForceField
+	ball.Color = color
+	ball.Size = Vector3.new(s * 1.6, s * 1.6, s * 1.6)
+	ball.CFrame = CFrame.new(pos)
+	ball.Parent = workspace
+	local core = ball:Clone()
+	core.Material = Enum.Material.Neon
+	core.Transparency = 0.6
+	core.Size = Vector3.new(0.2, 0.2, 0.2)
+	core.Parent = workspace
+	local TweenService = game:GetService("TweenService")
+	TweenService:Create(ball, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Size = Vector3.new(1.2, 1.2, 1.2) }):Play()
+	task.delay(0.26, function()
+		ball:Destroy()
+		core.Transparency = 0.1
+		TweenService:Create(core, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(s * 1.3, s * 1.3, s * 1.3), Transparency = 1 }):Play()
+		task.delay(0.3, function()
+			core:Destroy()
+		end)
+	end)
+end
+
 function VFX.sound(id: string, volume: number?, pitch: number?)
 	local key = id .. "/" .. tostring(pitch or 1)
 	local s = cache[key]

@@ -430,14 +430,23 @@ function Controller.Start()
 	local handlers: { [string]: (any) -> () } = {
 		Catch = function(d)
 			local c = rarityColor(d.rarity)
-			VFX.stars(d.pos + Vector3.new(0, 1.5, 0), c, 26)
-			VFX.confetti(d.pos + Vector3.new(0, 1, 0), 16)
-			VFX.shockwave(d.pos, c, 8)
-			VFX.poof(d.pos, Color3.new(1, 1, 1))
+			local tier = RARITY_INDEX[d.rarity] or 1
+			VFX.capture(d.pos + Vector3.new(0, 1, 0), c, 4 + tier)
+			task.delay(0.28, function()
+				VFX.stars(d.pos + Vector3.new(0, 1.5, 0), c, 22 + tier * 6)
+				VFX.confetti(d.pos + Vector3.new(0, 1, 0), 12 + tier * 4)
+				VFX.shockwave(d.pos, c, 6 + tier * 2)
+				VFX.beam(d.pos, c, 10 + tier * 4, 3)
+				VFX.floatText(d.pos + Vector3.new(0, 4, 0), tier >= 3 and "GOTCHA!!" or "GOTCHA!", UIKit.lighter(c, 0.3))
+				if nearMe(d.pos, 60) then
+					VFX.sound(Sounds.Pop, 0.6, 1.1)
+				end
+			end)
 		end,
 		Miss = function(d)
 			VFX.poof(d.pos)
-			VFX.floatText(d.pos + Vector3.new(0, 3, 0), "?!", Color3.fromRGB(255, 120, 100))
+			VFX.poof(d.pos + Vector3.new(1.5, 0, 0), Color3.fromRGB(210, 190, 150))
+			VFX.floatText(d.pos + Vector3.new(0, 3, 0), "MISS!", Color3.fromRGB(255, 120, 100))
 			if nearMe(d.pos, 40) then
 				VFX.sound(Sounds.Whoosh, 0.5, 1.2)
 			end

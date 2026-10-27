@@ -15,4 +15,7 @@ return {
 	Glow = "rbxassetid://101183792173525", -- soft radial glow
 	Sparkle = "rbxassetid://140337386401516", -- 4-point sparkle star
 	Ribbon = "rbxassetid://72923552784185", -- notched banner, 9-slice (SliceCenter 48,24,464,104)
+	Reticle = "rbxassetid://129181666711224", -- targeting ring with 4 ticks
+	Ring = "rbxassetid://91881724769173", -- thin soft ring (shockwaves, bubble rim)
+	Heart = "rbxassetid://138828172173377", -- chunky heart (particles)
 }

@@ -119,7 +119,58 @@ def ribbon() -> Image.Image:
     return img.resize((512, 128), Image.LANCZOS)
 
 
-GENERATORS = {"sunburst": sunburst, "paws": paws, "glow": glow, "sparkle": sparkle, "ribbon": ribbon}
+def reticle() -> Image.Image:
+    """Targeting reticle: ring with four inward ticks and a soft inner glow, 512x512."""
+    ss, s = 2, 512 * 2
+    c = s / 2
+    m = Image.new("L", (s, s), 0)
+    d = ImageDraw.Draw(m)
+    r_out, r_in = s * 0.44, s * 0.38
+    d.ellipse([c - r_out, c - r_out, c + r_out, c + r_out], fill=255)
+    d.ellipse([c - r_in, c - r_in, c + r_in, c + r_in], fill=0)
+    for a in range(4):
+        th = math.radians(45 + a * 90)
+        tip = (c + math.cos(th) * s * 0.27, c + math.sin(th) * s * 0.27)
+        b1 = (c + math.cos(th - 0.09) * s * 0.47, c + math.sin(th - 0.09) * s * 0.47)
+        b2 = (c + math.cos(th + 0.09) * s * 0.47, c + math.sin(th + 0.09) * s * 0.47)
+        d.polygon([tip, b1, b2], fill=255)
+    for a in range(4):  # cut four gaps into the ring
+        th = math.radians(a * 90)
+        d.polygon([(c, c), (c + math.cos(th - 0.12) * s, c + math.sin(th - 0.12) * s), (c + math.cos(th + 0.12) * s, c + math.sin(th + 0.12) * s)], fill=0)
+    glow_l = radial(s, 3).point(lambda v: int(v * 0.25))
+    m = ImageChops.lighter(m, glow_l)
+    return alpha_image(m.resize((512, 512), Image.LANCZOS))
+
+
+def ring() -> Image.Image:
+    """Thin soft ring (shockwaves, ripples, capture bubble rim), 512x512."""
+    s = 512
+    c = s / 2
+    g = Image.new("L", (s, s), 0)
+    px = g.load()
+    for y in range(s):
+        for x in range(s):
+            r = math.hypot(x - c + 0.5, y - c + 0.5) / c
+            px[x, y] = int(255 * max(0.0, 1 - abs(r - 0.88) / 0.08) ** 1.5)
+    return alpha_image(g)
+
+
+def heart() -> Image.Image:
+    """Chunky heart for particles (white, tint via ParticleEmitter.Color), 256x256."""
+    ss, s = 4, 256 * 4
+    m = Image.new("L", (s, s), 0)
+    d = ImageDraw.Draw(m)
+    pts = []
+    for k in range(200):
+        t = k / 200 * 2 * math.pi
+        x = 16 * math.sin(t) ** 3
+        y = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
+        pts.append((s / 2 + x * s / 38, s / 2 - y * s / 38 - s * 0.03))
+    d.polygon(pts, fill=255)
+    return alpha_image(m.resize((256, 256), Image.LANCZOS))
+
+
+GENERATORS = {"heart": heart, "sunburst": sunburst, "paws": paws, "glow": glow, "sparkle": sparkle, "ribbon": ribbon, "reticle": reticle, "ring": ring}
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "."
