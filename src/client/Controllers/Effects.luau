@@ -130,7 +130,11 @@ function Controller.Start()
 		UIKit.tween(flash, 0.6, { BackgroundTransparency = 1 })
 	end
 
+	local Settings = require(script.Parent.Parent:WaitForChild("Modules"):WaitForChild("Settings"))
 	local function shake(duration: number, magnitude: number)
+		if Settings.get("shake") == false then
+			return
+		end
 		local t0 = os.clock()
 		local name = "CatchShake" .. tostring(t0)
 		RunService:BindToRenderStep(name, Enum.RenderPriority.Camera.Value + 1, function()
@@ -532,6 +536,32 @@ function Controller.Start()
 				shake(0.7, 0.5)
 				screenFlash(Color3.fromRGB(190, 150, 255), 0.45)
 			end
+		end,
+		Streak = function(d)
+			local holder = Instance.new("Frame")
+			holder.BackgroundTransparency = 1
+			holder.Size = UDim2.fromOffset(420, 120)
+			holder.AnchorPoint = Vector2.new(0.5, 0.5)
+			holder.Position = UDim2.new(0.5, 0, 0, 330)
+			holder.Parent = center
+			UIKit.sunburst(holder, { size = UDim2.fromOffset(300, 300), color = Color3.fromRGB(255, 170, 60), transparency = 0.35, speed = 60, z = 1 })
+			local t = UIKit.text(holder, { text = ("x%d STREAK!"):format(d.streak), bold = true, size = UDim2.new(1, 0, 0, 64), position = UDim2.fromScale(0.5, 0.4), anchor = Vector2.new(0.5, 0.5), z = 5, color = Color3.fromRGB(255, 200, 60), strokeThickness = 5 })
+			local g = Instance.new("UIGradient")
+			g.Rotation = 90
+			g.Color = ColorSequence.new(Color3.fromRGB(255, 240, 120), Color3.fromRGB(255, 90, 30))
+			g.Parent = t
+			UIKit.text(holder, { text = ("+%d BONUS"):format(d.bonus), bold = true, size = UDim2.new(1, 0, 0, 32), position = UDim2.fromScale(0.5, 0.82), anchor = Vector2.new(0.5, 0.5), z = 5, strokeThickness = 3 })
+			local sc = Instance.new("UIScale")
+			sc.Scale = 2
+			sc.Parent = holder
+			UIKit.tween(sc, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+			VFX.sound(Sounds.Fanfare, 0.4, 0.9 + math.min(d.streak, 10) * 0.05)
+			flyCoins(Vector3.zero, d.bonus, true)
+			task.delay(1.4, function()
+				UIKit.tween(sc, 0.25, { Scale = 0.01 })
+				task.wait(0.3)
+				holder:Destroy()
+			end)
 		end,
 		Ticker = function(d)
 			ticker(d.text, d.rarity)

@@ -30,4 +30,18 @@ return {
 	Players = "rbxassetid://108483043751053", -- Player/4 Players/4 Players 1st Outline (summoning)
 	Exclaim = "rbxassetid://87000957851973", -- UI/Exclamation Mark/Exclamation Mark 1st Outline
 	Lock = "rbxassetid://89207650014161", -- Item/Lock/Lock 1st Outline
+	Settings = "rbxassetid://87292214350306", -- Main/Settings/Settings 2 1st Outline
+	Robux = "rbxassetid://123595092923534", -- Currency/Robux/Green Robux 1st Outline
+	Fire = "rbxassetid://116528631470469", -- Main/Fire/Fire 1st Outline (catch streak)
+	Calendar = "rbxassetid://128360367434596", -- Item/Calendar/Golden Calendar 1st Outline (daily rewards)
+	Vip = "rbxassetid://80677779731168", -- Exclusive/VIP/VIP 1st Outline
+	MusicOn = "rbxassetid://135293282835990", -- Main/Music ON 1st Outline
+	MusicOff = "rbxassetid://96000916144974", -- Main/Music OFF 1st Outline
+	SoundOn = "rbxassetid://139411527225619", -- Main/Sound ON Outline
+	SoundOff = "rbxassetid://124216949833741", -- Main/Sound OFF Outline
+	Pin = "rbxassetid://70683119765386", -- Item/Location Pin 1st Outline (compass)
+	Lucky = "rbxassetid://126374586580188", -- Item/Lucky Block 1st Outline (lucky charm pass)
+	Magnet = "rbxassetid://126971390899450", -- Item/Magnet/Golden Magnet 1st Outline (auto collect)
+	Cash = "rbxassetid://140147244132243", -- Currency/Cash/Golden Cash 1st Outline (coin packs)
+	Cart = "rbxassetid://92620224141490", -- Main/Shopping Cart/Red Shopping Cart 1st Outline (store)
 }

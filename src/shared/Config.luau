@@ -114,6 +114,10 @@ Config.EggHatchSeconds = {
 -- Selling a base critter (frees the slot): coins = income per second * this
 Config.SellSeconds = 90
 
+-- Catch streak: catches less than StreakWindow seconds apart build a streak with bonus coins
+Config.StreakWindow = 30
+Config.StreakMax = 10 -- bonus stops growing here
+
 -- Social
 Config.ServerAnnounceMinTier = 5 -- Legendary+: "RKG caught a LEGENDARY ...!" for the server
 Config.GlobalFeedMinTier = 7 -- Secret+: ticker message in every server

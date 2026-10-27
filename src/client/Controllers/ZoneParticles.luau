@@ -74,6 +74,7 @@ function Controller.Start()
 		end
 	end
 
+	local Settings = require(script.Parent.Parent:WaitForChild("Modules"):WaitForChild("Settings"))
 	local weights: { number } = {}
 	RunService.RenderStepped:Connect(function(dt)
 		local pos = camera.CFrame.Position
@@ -84,8 +85,9 @@ function Controller.Start()
 			local w = weights[i] or 0
 			w += (inside - w) * math.min(1, dt * 2)
 			weights[i] = w
+			local q = Settings.lowQuality() and 0.3 or 1
 			for _, pair in ipairs(z.list) do
-				pair[1].Rate = pair[2] * w
+				pair[1].Rate = pair[2] * w * q
 			end
 		end
 	end)

@@ -22,6 +22,8 @@ local FUNCTIONS = {
 	ClaimDexPage = true, -- client -> server: claim a completed Critterdex page reward (page id)
 	SetTitle = true, -- client -> server: equip an earned title (id or nil)
 	Rebirth = true, -- client -> server: rebirth
+	SetSetting = true, -- client -> server: save a setting (key, value)
+	ClaimDaily = true, -- client -> server: claim today's daily reward
 }
 
 local IS_SERVER = RunService:IsServer()

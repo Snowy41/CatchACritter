@@ -226,7 +226,12 @@ function VFX.capture(pos: Vector3, color: Color3, size: number?)
 	end)
 end
 
+local Settings -- lazily required (Settings -> State -> Net waits for the server)
 function VFX.sound(id: string, volume: number?, pitch: number?)
+	Settings = Settings or require(script.Parent:WaitForChild("Settings"))
+	if Settings.get("sfx") == false then
+		return
+	end
 	local key = id .. "/" .. tostring(pitch or 1)
 	local s = cache[key]
 	if not s then

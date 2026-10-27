@@ -540,9 +540,10 @@ function UIKit.sparkles(parent: GuiObject, props: { [string]: any }?)
 	local rate = o.rate or 3 -- per second
 	local colors = o.colors or { Color3.new(1, 1, 1), Color3.fromRGB(255, 240, 150) }
 	task.spawn(function()
+		local Settings = require(script.Parent:WaitForChild("Settings"))
 		while parent.Parent do
 			task.wait(1 / rate * (0.6 + math.random() * 0.8))
-			local onScreen = parent.Visible and parent.AbsoluteSize.X > 0
+			local onScreen = parent.Visible and parent.AbsoluteSize.X > 0 and not (Settings.lowQuality() and math.random() < 0.7)
 			local anc = parent:FindFirstAncestorWhichIsA("LayerCollector")
 			if onScreen and anc and anc.Enabled then
 				local sp = Instance.new("ImageLabel")

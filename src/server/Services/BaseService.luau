@@ -32,10 +32,11 @@ function BaseService.incomeOf(entry: Config.CritterEntry): number
 end
 local incomeOf = BaseService.incomeOf
 
--- Permanent income multiplier of a player (rebirths).
+-- Permanent income multiplier of a player (rebirths x gamepass boost from MonetizationService).
 function BaseService.multiplierOf(player: Player): number
 	local data = DataService.get(player)
-	return 1 + Config.RebirthIncomeBonus * (data and data.rebirths or 0)
+	local boost = player:GetAttribute("IncomeBoost")
+	return (1 + Config.RebirthIncomeBonus * (data and data.rebirths or 0)) * (typeof(boost) == "number" and boost or 1)
 end
 
 local function sellValue(player: Player, entry: Config.CritterEntry): number
@@ -522,7 +523,19 @@ function BaseService.Start()
 						total += incomeOf(entry)
 					end
 					local mult = (workspace:GetAttribute("IncomeMultiplier") or 1) * BaseService.multiplierOf(player) -- Rain weather, rebirths
-					data.pendingCoins += total * mult * Config.IncomeTick
+					local earned = total * mult * Config.IncomeTick
+					if player:GetAttribute("AutoCollect") then
+						-- Auto Collect pass: straight into the wallet (whole coins; the rest waits)
+						data.pendingCoins += earned
+						local whole = math.floor(data.pendingCoins)
+						if whole > 0 then
+							data.pendingCoins -= whole
+							data.coins += whole
+							player:SetAttribute("Coins", data.coins)
+						end
+					else
+						data.pendingCoins += earned
+					end
 					player:SetAttribute("IncomePerSecond", total * mult)
 					updatePad(player)
 				end

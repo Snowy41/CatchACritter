@@ -30,6 +30,9 @@ export type Data = {
 	lastOnline: number?, -- os.time() of the last save (welcome-back reward)
 	offlinePending: number, -- welcome-back coins waiting to be collected
 	stats: { [string]: number }, -- lifetime counters (catchesByRarity ..., used for goals/analytics)
+	settings: { [string]: any }, -- client settings (music, sfx, quality, shake)
+	daily: { count: number, lastDay: number }, -- daily reward calendar
+	purchases: { [string]: boolean }, -- processed developer-product receipts (PurchaseId)
 }
 
 export type EggEntry = {
@@ -66,6 +69,9 @@ local function defaultData(): Data
 		lastOnline = nil,
 		offlinePending = 0,
 		stats = {},
+		settings = {},
+		daily = { count = 0, lastDay = -1 },
+		purchases = {},
 	}
 end
 

@@ -25,7 +25,8 @@ add("RainbowChaser", "Rainbow Chaser", Color3.fromRGB(255, 150, 230))
 add("Reborn1", "Reborn", Color3.fromRGB(200, 160, 255))
 add("Reborn2", "Twice Reborn", Color3.fromRGB(180, 130, 255))
 add("Reborn3", "Thrice Reborn", Color3.fromRGB(160, 100, 255))
--- Group
+-- Group / passes
 add("PackMember", "Pack Member", Color3.fromRGB(120, 200, 255))
+add("Vip", "VIP", Color3.fromRGB(255, 215, 60))
 
 return Titles

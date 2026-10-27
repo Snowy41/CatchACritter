@@ -30,7 +30,7 @@ function Controller.Start()
 
 	local topLeft = UIKit.area(gui, "TopLeft", UDim2.fromOffset(300, 140), UDim2.fromOffset(44, 18), Vector2.new(0, 0))
 	local right = UIKit.area(gui, "Right", UDim2.fromOffset(140, 170), UDim2.new(1, -22, 0.5, 0), Vector2.new(1, 0.5))
-	local top = UIKit.area(gui, "Top", UDim2.fromOffset(560, 270), UDim2.new(0.5, 0, 0, 14), Vector2.new(0.5, 0))
+	local top = UIKit.area(gui, "Top", UDim2.fromOffset(560, 270), UDim2.new(0.5, 0, 0, 66), Vector2.new(0.5, 0)) -- below the compass
 	UIKit.autoScale({ topLeft, right, top })
 
 	local function formatNumber(n: number): string

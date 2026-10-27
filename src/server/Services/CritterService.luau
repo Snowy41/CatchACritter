@@ -424,7 +424,8 @@ function CritterService.requestCatch(player: Player, critterId: any)
 	local data = DataService.get(player)
 	local guaranteed = data ~= nil and data.totalCatches < Config.GuaranteedCatches
 	-- rebirths widen the sweet spot ("better net")
-	local netBonus = 1 + Config.RebirthCatchBonus * (data and data.rebirths or 0)
+	local passBonus = player:GetAttribute("CatchBonus")
+	local netBonus = (1 + Config.RebirthCatchBonus * (data and data.rebirths or 0)) * (typeof(passBonus) == "number" and passBonus or 1)
 	local session: CatchSession = { token = HttpService:GenerateGUID(false), critterId = critterId, started = os.clock(), guaranteed = guaranteed }
 	sessions[player] = session
 	w.frozenBy = player

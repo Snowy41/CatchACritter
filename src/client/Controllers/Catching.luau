@@ -26,6 +26,7 @@ function Controller.Start()
 	local UIKit = require(Modules:WaitForChild("UIKit"))
 	local VFX = require(Modules:WaitForChild("VFX"))
 	local Bus = require(Modules:WaitForChild("Bus"))
+	local Settings = require(Modules:WaitForChild("Settings"))
 
 	local RequestCatch = Net.func("RequestCatch")
 	local SubmitCatch = Net.func("SubmitCatch")
@@ -107,6 +108,31 @@ function Controller.Start()
 	ringFx.Parent = wrap
 	wrap.Visible = false
 	local catchStroke: UIStroke? = nil
+
+	--------------------------------------------------------------------------- streak badge
+
+	local streak = UIKit.pill(bottom, {
+		name = "Streak", size = UDim2.fromOffset(150, 52), position = UDim2.new(0.5, -118, 1, -80), anchor = Vector2.new(1, 0.5), radius = 18,
+		icon = Icons.Fire, iconScale = 1.45, top = UIKit.Themes.Orange[1], bottom = UIKit.Themes.Red[2], pattern = "Stars", patternTransparency = 0.82, patternTile = 30,
+	})
+	local streakText = UIKit.text(streak.body, { text = "x2", bold = true, size = UDim2.new(1, -60, 0.56, 0), position = UDim2.new(0, 50, 0.4, 0), anchor = Vector2.new(0, 0.5), alignX = Enum.TextXAlignment.Left })
+	local streakTimer = UIKit.progressBar(streak.body, { size = UDim2.new(1, -60, 0, 9), position = UDim2.new(0, 50, 1, -14), radius = 4, stroke = 1.5, colors = UIKit.BarGold })
+	streakTimer.label.Visible = false
+	streak.holder.Visible = false
+	local function refreshStreak()
+		local n = player:GetAttribute("Streak") or 0
+		local show = n >= 2
+		if show and not streak.holder.Visible then
+			UIKit.pop(streak.holder, 0.35)
+		end
+		streak.holder.Visible = show
+		streakText.Text = ("x%d STREAK"):format(n)
+		if show then
+			UIKit.pop(streak.holder, 0.2)
+		end
+	end
+	player:GetAttributeChangedSignal("Streak"):Connect(refreshStreak)
+	refreshStreak()
 
 	--------------------------------------------------------------------------- target chip
 
@@ -283,7 +309,7 @@ function Controller.Start()
 		active = nil
 		busy = false
 		if result and result.ok and result.success then
-			punch = 1
+			punch = Settings.get("shake") == false and 0 or 1
 			if isPerfect then
 				resultStamp("PERFECT!", Color3.fromRGB(255, 240, 120), Color3.fromRGB(255, 160, 20))
 				VFX.sound(Sounds.Fanfare, 0.4, 1.2)
@@ -387,6 +413,15 @@ function Controller.Start()
 			cursorIcon.Rotation = math.sin(now * 12) * 12
 			zoneGlow.ImageTransparency = 0.45 + math.sin(now * 8) * 0.15
 			barTitle.Rotation = math.sin(now * 6) * 2
+		end
+
+		-- streak countdown + flame flicker
+		if streak.holder.Visible then
+			local left = math.max(0, (player:GetAttribute("StreakEnds") or 0) - os.time())
+			streakTimer.fill.Size = UDim2.fromScale(math.clamp(left / Config.StreakWindow, 0.04, 1), 1)
+			if streak.icon then
+				streak.icon.Rotation = math.sin(now * 10) * 6
+			end
 		end
 
 		-- target selection

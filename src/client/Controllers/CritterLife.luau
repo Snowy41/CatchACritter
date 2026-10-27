@@ -21,6 +21,7 @@ function Controller.Start()
 	local Config = require(Shared:WaitForChild("Config"))
 	local Textures = require(Shared:WaitForChild("Textures"))
 
+	local Settings = require(script.Parent.Parent:WaitForChild("Modules"):WaitForChild("Settings"))
 	local camera = workspace.CurrentCamera
 	local INK = Color3.fromRGB(20, 14, 36)
 
@@ -283,8 +284,9 @@ function Controller.Start()
 				alert(life)
 			end
 			life.fleeing = fleeing
+			local low = Settings.lowQuality()
 			if life.dust then
-				life.dust.Rate = speed > 5 and speed * 2.5 or 0
+				life.dust.Rate = (speed > 5 and not low) and speed * 2.5 or 0
 			end
 
 			-- happy hop in the base
@@ -337,11 +339,17 @@ function Controller.Start()
 			if #life.motes > 0 then
 				local rad = life.size * 0.9
 				for i, m in ipairs(life.motes) do
+					m.Transparency = low and 1 or 0
+					local tr = m:FindFirstChildOfClass("Trail")
+					if tr then
+						tr.Enabled = not low
+					end
 					local a = now * 2.2 + i * (math.pi * 2 / #life.motes)
 					m.CFrame = CFrame.new(pos + Vector3.new(math.cos(a) * rad, life.size * 0.1 + math.sin(now * 3 + i) * life.size * 0.25, math.sin(a) * rad))
 				end
 			end
 			if life.halo then
+				life.halo.Enabled = not low
 				local img = life.halo:FindFirstChildOfClass("ImageLabel")
 				if img then
 					img.Rotation = (now * 25) % 360
