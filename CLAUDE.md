@@ -22,6 +22,12 @@ Roblox kids' game (target 100–200 CCU). Full game design document: `GDD.md` in
 - Budgets: critter body mesh ~500–1,500 triangles + 10–30 parts; guardian mesh ~2,000–5,000 triangles + 20–60 parts; zone props built once as reusable templates.
 - Each model: one Model, welded, with a PrimaryPart. Small detail parts: CanCollide off, CastShadow off.
 
+## Code workflow (Rojo + git)
+- Git repo in this folder (branch `main`). Rojo 7.7.0-rc.1 via Aftman (`aftman.toml`); start with `rojo serve default.project.json` (port 34872), user connects with the Rojo plugin in Studio.
+- Rojo manages only code: `src/server` → ServerScriptService, `src/client` → StarterPlayerScripts, `src/shared` → ReplicatedStorage.Shared. All service nodes use `$ignoreUnknownInstances`, so map, lab, models, MapTemplates and `ReplicatedStorage.DevLabData` stay in the place file and are never touched.
+- Edit synced scripts as files in `src/` (never in Studio — Rojo overwrites them). Map/level geometry is still built in Studio via the MCP.
+- Naming: `*.server.luau` = Script, `*.client.luau` = LocalScript, `*.luau` = ModuleScript.
+
 ## Current status
 - Roblox Studio MCP works in Claude Code (verified 2026-10-26). Place "Catch a Critter" (placeId 130712981203933).
 - Map v1 built 2026-10-27 in `Workspace.Map` (path runs toward -Z, 1 stud = 1 unit): StartHub (spawn plaza z≈52), Avenue + 8 Bases (z 0..-240, x ±50), Meadow (-240..-680), Swamp (-680..-1120, gate Speed 1), Volcano (-1120..-1600, gate Speed 2), Crystal Cave gate at -1600 (locked, Rebirth 1). Prop templates in `ServerStorage.MapTemplates` (part-built; user decided 2026-10-27 they stay parts, no Blender needed for props). Players will later spawn in their own plot (not at the plaza). Gameplay hooks via CollectionService tags: BasePlot, CritterSlot, CoinPad, ZoneGate, NestSpot, GuardianSpot, Hazard, CritterSpawnArea, SafeZone, ShopStall, ScheduleBoard. `StarterPlayerScripts.ZoneAmbience` blends atmosphere per zone. Lighting.Technology can't be set via MCP (set manually).
