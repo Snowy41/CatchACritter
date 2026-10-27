@@ -1,5 +1,5 @@
--- Carrying caught critters home, placing them on the plot's slots, income and the coin pad.
--- Signals: Deposited(player, slotIndex, entry), Collected(player, amount)
+-- Carrying caught critters home, placing them on the plot's slots, selling them, income and the
+-- coin pad. Signals: Deposited(player, slotIndex, entry), Collected(player, amount), Sold(player, entry, coins)
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -20,6 +20,7 @@ BaseService.Priority = 20
 
 BaseService.Deposited = Signal.new()
 BaseService.Collected = Signal.new()
+BaseService.Sold = Signal.new()
 
 type Carry = { entry: Config.CritterEntry, model: Model, nest: string? }
 local carrying: { [Player]: Carry } = {}
@@ -30,6 +31,16 @@ function BaseService.incomeOf(entry: Config.CritterEntry): number
 	return Config.income(entry, def.baseIncome, def.baseKg)
 end
 local incomeOf = BaseService.incomeOf
+
+-- Permanent income multiplier of a player (rebirths).
+function BaseService.multiplierOf(player: Player): number
+	local data = DataService.get(player)
+	return 1 + Config.RebirthIncomeBonus * (data and data.rebirths or 0)
+end
+
+local function sellValue(player: Player, entry: Config.CritterEntry): number
+	return math.max(5, math.floor(incomeOf(entry) * BaseService.multiplierOf(player) * Config.SellSeconds))
+end
 
 --------------------------------------------------------------------------- speed
 
@@ -63,7 +74,9 @@ local function displayFolder(plot: Model): Folder
 	return f :: Folder
 end
 
-local function showOnSlot(plot: Model, index: number, entry: Config.CritterEntry)
+local sellSlot -- forward declaration (defined below)
+
+local function showOnSlot(plot: Model, index: number, entry: Config.CritterEntry, player: Player?)
 	local slot = PlotService.slot(plot, index)
 	if not slot then
 		return
@@ -88,12 +101,31 @@ local function showOnSlot(plot: Model, index: number, entry: Config.CritterEntry
 		inc.Font = Enum.Font.FredokaOne
 		inc.TextScaled = true
 		inc.TextColor3 = Color3.fromRGB(255, 215, 60)
-		inc.Text = ("+%s/s"):format(string.format("%.1f", incomeOf(entry)))
+		local mult = player and BaseService.multiplierOf(player) or 1
+		inc.Text = ("+%s/s"):format(string.format("%.1f", incomeOf(entry) * mult))
 		local s = Instance.new("UIStroke")
 		s.Thickness = 2
 		s.Parent = inc
 		inc.Parent = plate
 		plate.Size = UDim2.fromOffset(160, 66)
+	end
+	-- hold F to sell (only the owner sees it: Controllers/Prompts hides prompts of other plots)
+	if player and model.PrimaryPart then
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "SellPrompt"
+		prompt.ActionText = ("Sell  +%d"):format(sellValue(player, entry))
+		prompt.ObjectText = CritterDefs[entry.species].displayName
+		prompt.HoldDuration = 1
+		prompt.MaxActivationDistance = 8
+		prompt.RequiresLineOfSight = false
+		prompt.KeyboardKeyCode = Enum.KeyCode.F
+		prompt:SetAttribute("OwnerUserId", player.UserId)
+		prompt.Triggered:Connect(function(who)
+			if who == player then
+				sellSlot(player, index)
+			end
+		end)
+		prompt.Parent = model.PrimaryPart
 	end
 	model.Parent = folder
 end
@@ -104,7 +136,7 @@ function BaseService.rerenderSlot(player: Player, index: number)
 	local data = DataService.get(player)
 	local entry = data and data.base[tostring(index)]
 	if plot and entry then
-		showOnSlot(plot, index, entry)
+		showOnSlot(plot, index, entry, player)
 	end
 end
 
@@ -116,7 +148,7 @@ function BaseService.renderBase(player: Player)
 	end
 	displayFolder(plot):ClearAllChildren()
 	for key, entry in pairs(data.base) do
-		showOnSlot(plot, tonumber(key) :: number, entry)
+		showOnSlot(plot, tonumber(key) :: number, entry, player)
 	end
 end
 
@@ -182,24 +214,34 @@ function BaseService.startCarry(player: Player, entry: Config.CritterEntry, nest
 	player:SetAttribute("CarryingRarity", entry.rarity)
 	BaseService.applyWalkSpeed(player)
 	local data = DataService.get(player)
-	local isNew = false
 	if data then
 		data.totalCatches += 1
 		player:SetAttribute("TotalCatches", data.totalCatches)
-		local key = ("%s/%s/%s"):format(entry.species, entry.rarity, entry.mutation or "None")
-		isNew = not data.dex[key]
-		data.dex[key] = true
 	end
-	FxService.toPlayer(player, "CatchCard", {
+	local DexService = require(script.Parent.DexService) :: any -- lazy: DexService requires BaseService
+	local isNew, found, total = DexService.register(player, entry)
+	FxService.toPlayer(player, "CatchCard", BaseService.cardData(player, entry, {
+		isNew = isNew,
+		dexFound = found,
+		dexTotal = total,
+		fromNest = nestZone ~= nil,
+	}))
+	return true
+end
+
+-- Data for the client's catch / hatch reveal card.
+function BaseService.cardData(player: Player, entry: Config.CritterEntry, extra: { [string]: any }?): { [string]: any }
+	local d: { [string]: any } = {
 		name = CritterDefs[entry.species].displayName,
 		rarity = entry.rarity,
 		mutation = entry.mutation,
 		sizeKg = entry.sizeKg,
-		income = incomeOf(entry),
-		isNew = isNew,
-		fromNest = nestZone ~= nil,
-	})
-	return true
+		income = incomeOf(entry) * BaseService.multiplierOf(player),
+	}
+	for k, v in pairs(extra or {}) do
+		d[k] = v
+	end
+	return d
 end
 
 function BaseService.dropCarry(player: Player)
@@ -235,6 +277,49 @@ local function freeSlot(data: DataService.Data): number?
 	return nil
 end
 
+function BaseService.hasFreeSlot(player: Player): boolean
+	local data = DataService.get(player)
+	return data ~= nil and freeSlot(data) ~= nil
+end
+
+-- Puts a critter straight into the first free slot (e.g. hatched from an egg). Returns the slot.
+function BaseService.place(player: Player, entry: Config.CritterEntry): number?
+	local plot = PlotService.getPlot(player)
+	local data = DataService.get(player)
+	local index = data and freeSlot(data)
+	if not plot or not data or not index then
+		return nil
+	end
+	data.base[tostring(index)] = entry
+	showOnSlot(plot, index, entry, player)
+	local slot = PlotService.slot(plot, index)
+	if slot then
+		FxService.toAll("Deposit", { pos = slot.Position + Vector3.new(0, slot.Size.Y / 2, 0), rarity = entry.rarity })
+	end
+	return index
+end
+
+function sellSlot(player: Player, index: number)
+	local plot = PlotService.getPlot(player)
+	local data = DataService.get(player)
+	local entry = data and data.base[tostring(index)]
+	if not plot or not data or not entry then
+		return
+	end
+	local coins = sellValue(player, entry)
+	data.base[tostring(index)] = nil
+	local model = displayFolder(plot):FindFirstChild("Slot" .. index)
+	if model then
+		model:Destroy()
+	end
+	BaseService.addCoins(player, coins)
+	local slot = PlotService.slot(plot, index)
+	FxService.toPlayer(player, "Collect", { pos = slot and slot.Position or Vector3.zero, amount = coins })
+	FxService.notify(player, ("Sold %s for %d coins"):format(CritterDefs[entry.species].displayName, coins), "coins")
+	BaseService.Sold:Fire(player, entry, coins)
+end
+BaseService.sell = sellSlot
+
 local function tryDeposit(player: Player)
 	local c = carrying[player]
 	local plot = PlotService.getPlot(player)
@@ -248,18 +333,18 @@ local function tryDeposit(player: Player)
 	if not index then
 		if os.clock() - (lastFullWarning[player] or 0) > 4 then
 			lastFullWarning[player] = os.clock()
-			FxService.notify(player, "Your base is full!", "warn")
+			FxService.notify(player, "Your base is full! Hold F on a critter to sell it", "warn")
 		end
 		return
 	end
 	data.base[tostring(index)] = c.entry
 	BaseService.dropCarry(player)
-	showOnSlot(plot, index, c.entry)
+	showOnSlot(plot, index, c.entry, player)
 	local slot = PlotService.slot(plot, index)
 	if slot then
 		FxService.toAll("Deposit", { pos = slot.Position + Vector3.new(0, slot.Size.Y / 2, 0), rarity = c.entry.rarity })
 	end
-	FxService.notify(player, ("%s placed! +%s coins/s"):format(CritterDefs[c.entry.species].displayName, string.format("%.1f", incomeOf(c.entry))), "success")
+	FxService.notify(player, ("%s placed! +%s coins/s"):format(CritterDefs[c.entry.species].displayName, string.format("%.1f", incomeOf(c.entry) * BaseService.multiplierOf(player))), "success")
 	BaseService.Deposited:Fire(player, index, c.entry)
 end
 
@@ -366,6 +451,16 @@ local function collect(player: Player)
 	BaseService.Collected:Fire(player, amount)
 end
 
+-- Income per second without weather (welcome-back reward, quest rewards).
+function BaseService.baseIncome(player: Player): number
+	local data = DataService.get(player)
+	local total = 0
+	for _, entry in pairs(data and data.base or {}) do
+		total += incomeOf(entry)
+	end
+	return total * BaseService.multiplierOf(player)
+end
+
 -- Adds coins directly (rewards, refunds). Positive amounts only.
 function BaseService.addCoins(player: Player, amount: number)
 	local data = DataService.get(player)
@@ -426,7 +521,7 @@ function BaseService.Start()
 					for _, entry in pairs(data.base) do
 						total += incomeOf(entry)
 					end
-					local mult = workspace:GetAttribute("IncomeMultiplier") or 1 -- e.g. Rain weather
+					local mult = (workspace:GetAttribute("IncomeMultiplier") or 1) * BaseService.multiplierOf(player) -- Rain weather, rebirths
 					data.pendingCoins += total * mult * Config.IncomeTick
 					player:SetAttribute("IncomePerSecond", total * mult)
 					updatePad(player)

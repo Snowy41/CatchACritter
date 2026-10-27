@@ -412,20 +412,20 @@ function Controller.Start()
 		return x <= 1 and x or 2 - x
 	end
 
-	local function finishCatch(hit: boolean)
+	local function finishCatch(hit: boolean, near: boolean?)
 		local a = active
 		if not a or a.done then
 			return
 		end
 		a.done = true
-		local result = SubmitCatch:InvokeServer(a.token, hit)
+		local result = SubmitCatch:InvokeServer(a.token, hit, near == true)
 		active = nil
 		barRoot.Visible = false
 		busy = false
 		if result and result.ok then
 			if result.success then
 				-- the catch card (Effects) celebrates successful catches
-			else
+			elseif not result.near then -- near misses get their own "SO CLOSE!" moment (Effects)
 				toast("It got away!", "warn")
 			end
 		end
@@ -473,7 +473,9 @@ function Controller.Start()
 				return -- the tap that opened the bar doesn't count as the answer
 			end
 			local x = cursorPos(a)
-			finishCatch(x >= a.zoneStart and x <= a.zoneStart + a.zoneSize)
+			local hit = x >= a.zoneStart and x <= a.zoneStart + a.zoneSize
+			local gap = math.min(math.abs(x - a.zoneStart), math.abs(x - (a.zoneStart + a.zoneSize)))
+			finishCatch(hit, not hit and gap <= Config.NearMissMargin)
 		else
 			startCatch()
 		end

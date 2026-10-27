@@ -19,8 +19,29 @@ export type Data = {
 	sessions: number, -- number of times the player has joined (1 = first session)
 	slotsUnlocked: number,
 	base: { [string]: Config.CritterEntry }, -- slot index (as string) -> critter
-	dex: { [string]: boolean }, -- "Species/Rarity/Mutation" -> seen
+	dex: { [string]: boolean }, -- legacy (v1): "Species/Rarity/Mutation" -> seen
+	critterdex: { [string]: boolean }, -- "Species:Variant" -> found (shared/Dex)
+	dexClaimed: { [string]: boolean }, -- Critterdex page id -> reward claimed
+	titles: { [string]: boolean }, -- earned title ids (shared/Titles)
+	title: string?, -- equipped title
+	rebirths: number,
+	eggs: { EggEntry },
+	quests: { day: number, list: { QuestEntry }, bonusClaimed: boolean }?,
+	lastOnline: number?, -- os.time() of the last save (welcome-back reward)
+	offlinePending: number, -- welcome-back coins waiting to be collected
+	stats: { [string]: number }, -- lifetime counters (catchesByRarity ..., used for goals/analytics)
 }
+
+export type EggEntry = {
+	id: string,
+	species: string,
+	rarity: string,
+	mutation: string?, -- inherited natural mutation (applied on hatch)
+	laidAt: number,
+	hatchAt: number,
+}
+
+export type QuestEntry = { id: string, goal: number, progress: number, reward: number, claimed: boolean }
 
 local CURRENT_VERSION = 1
 
@@ -35,6 +56,16 @@ local function defaultData(): Data
 		slotsUnlocked = Config.StartSlots,
 		base = {},
 		dex = {},
+		critterdex = {},
+		dexClaimed = {},
+		titles = {},
+		title = nil,
+		rebirths = 0,
+		eggs = {},
+		quests = nil,
+		lastOnline = nil,
+		offlinePending = 0,
+		stats = {},
 	}
 end
 
@@ -89,6 +120,7 @@ function DataService.save(player: Player)
 	if not s or not s.canSave or not store then
 		return
 	end
+	s.data.lastOnline = os.time()
 	local ok, err = pcall(function()
 		(store :: DataStore):UpdateAsync(key(player), function()
 			return s.data

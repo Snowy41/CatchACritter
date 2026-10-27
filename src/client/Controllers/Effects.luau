@@ -54,6 +54,8 @@ function Controller.Start()
 	local center = UIKit.area(fxGui, "Center", UDim2.fromOffset(600, 420), UDim2.new(0.5, 0, 0, 90), Vector2.new(0.5, 0))
 	UIKit.autoScale({ center })
 
+	local confettiBurst, nearMissBanner, ticker -- defined below (used by handlers)
+
 	--------------------------------------------------------------------------- coins fly into the HUD
 
 	local function coinTarget(): (Vector2?, GuiObject?)
@@ -66,13 +68,13 @@ function Controller.Start()
 		return hud.AbsolutePosition + icon.AbsolutePosition + icon.AbsoluteSize / 2, icon
 	end
 
-	local function flyCoins(worldPos: Vector3, amount: number)
+	local function flyCoins(worldPos: Vector3, amount: number, fromScreenCenter: boolean?)
 		local target, icon = coinTarget()
 		if not target then
 			return
 		end
 		local screen, onScreen = camera:WorldToViewportPoint(worldPos + Vector3.new(0, 3, 0))
-		local start = onScreen and Vector2.new(screen.X, screen.Y) or (camera.ViewportSize / 2)
+		local start = (onScreen and not fromScreenCenter) and Vector2.new(screen.X, screen.Y) or (camera.ViewportSize / 2)
 		local n = math.clamp(math.floor(amount / 4), 4, 14)
 		for i = 1, n do
 			task.delay((i - 1) * 0.05, function()
@@ -112,48 +114,138 @@ function Controller.Start()
 		end)
 	end
 
-	--------------------------------------------------------------------------- catch card
+	--------------------------------------------------------------------------- catch / hatch reveal card
 
+	local flash = Instance.new("Frame")
+	flash.Name = "Flash"
+	flash.BorderSizePixel = 0
+	flash.BackgroundTransparency = 1
+	flash.Size = UDim2.fromScale(1, 1)
+	flash.ZIndex = 30
+	flash.Parent = fxGui
+
+	local function screenFlash(color: Color3, strength: number)
+		flash.BackgroundColor3 = color
+		flash.BackgroundTransparency = 1 - strength
+		UIKit.tween(flash, 0.6, { BackgroundTransparency = 1 })
+	end
+
+	local function shake(duration: number, magnitude: number)
+		local t0 = os.clock()
+		local name = "CatchShake" .. tostring(t0)
+		RunService:BindToRenderStep(name, Enum.RenderPriority.Camera.Value + 1, function()
+			local t = os.clock() - t0
+			if t > duration then
+				RunService:UnbindFromRenderStep(name)
+				return
+			end
+			local m = magnitude * (1 - t / duration)
+			camera.CFrame *= CFrame.new(math.random(-100, 100) / 100 * m, math.random(-100, 100) / 100 * m, 0)
+		end)
+	end
+
+	-- The card arrives showing "???" while the rarity ribbon flickers through the tiers (slowing
+	-- down like a wheel), then lands on the real rarity: pop, sound, flash for Rare+, a mutation
+	-- stamp slams in, Giant shakes the camera, and a first-time find gets a NEW! sticker.
 	local function catchCard(d: { [string]: any })
+		local tier = RARITY_INDEX[d.rarity] or 1
 		local color = rarityColor(d.rarity)
 		local holder = Instance.new("Frame")
 		holder.BackgroundTransparency = 1
-		holder.Size = UDim2.fromOffset(420, 132)
+		holder.Size = UDim2.fromOffset(440, 150)
 		holder.AnchorPoint = Vector2.new(0.5, 0)
-		holder.Position = UDim2.new(0.5, 0, 0, -160)
+		holder.Position = UDim2.new(0.5, 0, 0, -170)
 		holder.Parent = center
 		local card = UIKit.pill(holder, {
-			name = "Card", size = UDim2.fromOffset(380, 118), position = UDim2.new(0.5, 20, 0, 0), anchor = Vector2.new(0.5, 0),
-			icon = Icons.Paw, iconScale = 1.05, radius = 22,
-			top = UIKit.lighter(color, 0.15):Lerp(UIKit.PanelTop, 0.45), bottom = color:Lerp(UIKit.PanelBottom, 0.65),
+			name = "Card", size = UDim2.fromOffset(400, 124), position = UDim2.new(0.5, 20, 0, 0), anchor = Vector2.new(0.5, 0),
+			icon = d.hatched and Icons.CrackedEgg or Icons.Paw, iconScale = 1.05, radius = 22,
 		})
-		UIKit.text(card.body, { text = "CAUGHT!", bold = true, size = UDim2.new(1, -110, 0, 26), position = UDim2.fromOffset(92, 10), alignX = Enum.TextXAlignment.Left, color = Color3.fromRGB(255, 225, 90) })
+		local cardGradient = card.body:FindFirstChildOfClass("UIGradient") :: UIGradient
 		UIKit.text(card.body, {
-			text = (d.mutation and (d.mutation .. " ") or "") .. d.name, bold = true,
-			size = UDim2.new(1, -110, 0, 36), position = UDim2.fromOffset(92, 36), alignX = Enum.TextXAlignment.Left,
+			text = d.hatched and "HATCHED!" or (d.fromNest and "SNATCHED!" or "CAUGHT!"), bold = true,
+			size = UDim2.new(1, -110, 0, 26), position = UDim2.fromOffset(96, 10), alignX = Enum.TextXAlignment.Left, color = Color3.fromRGB(255, 225, 90),
 		})
-		local ribbon = UIKit.pill(card.body, {
-			name = "Ribbon", size = UDim2.fromOffset(124, 28), position = UDim2.fromOffset(92, 78), radius = 10,
-			top = UIKit.lighter(color, 0.2), bottom = color,
+		local nameText = UIKit.text(card.body, {
+			text = "???", bold = true, size = UDim2.new(1, -110, 0, 36), position = UDim2.fromOffset(96, 38), alignX = Enum.TextXAlignment.Left,
 		})
-		UIKit.text(ribbon.body, { text = string.upper(d.rarity), bold = true, size = UDim2.new(1, -10, 0.7, 0), position = UDim2.new(0.5, 0, 0.5, 0), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2 })
-		UIKit.text(card.body, {
-			text = ("%.1f kg   +%s/s"):format(d.sizeKg, string.format("%.1f", d.income)),
-			size = UDim2.new(1, -240, 0, 24), position = UDim2.fromOffset(226, 80), alignX = Enum.TextXAlignment.Left, strokeThickness = 2.5,
+		local ribbon = UIKit.pill(card.body, { name = "Ribbon", size = UDim2.fromOffset(130, 30), position = UDim2.fromOffset(96, 82), radius = 10 })
+		local ribbonGradient = ribbon.body:FindFirstChildOfClass("UIGradient") :: UIGradient
+		local ribbonText = UIKit.text(ribbon.body, { text = "???", bold = true, size = UDim2.new(1, -10, 0.7, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2 })
+		local stats = UIKit.text(card.body, {
+			text = "", size = UDim2.new(1, -250, 0, 24), position = UDim2.fromOffset(236, 85), alignX = Enum.TextXAlignment.Left, strokeThickness = 2.5,
 		})
-		if d.isNew then
-			local badge = UIKit.pill(holder, {
-				name = "New", size = UDim2.fromOffset(86, 34), position = UDim2.new(1, -6, 0, -10), anchor = Vector2.new(1, 0), radius = 12,
-				top = Color3.fromRGB(255, 110, 110), bottom = Color3.fromRGB(210, 40, 60),
-			})
-			badge.holder.Rotation = 8
-			UIKit.text(badge.body, { text = "NEW!", bold = true, size = UDim2.new(1, -8, 0.7, 0), position = UDim2.new(0.5, 0, 0.5, 0), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2 })
+		local function paint(r: Color3)
+			ribbonGradient.Color = ColorSequence.new(UIKit.lighter(r, 0.2), r)
 		end
-		UIKit.tween(holder, 0.45, { Position = UDim2.new(0.5, 0, 0, 120) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-		local big = (RARITY_INDEX[d.rarity] or 1) >= 3
-		VFX.sound((big or d.isNew) and Sounds.Fanfare or Sounds.Catch, big and 0.6 or 0.45)
-		task.delay(2.6, function()
-			UIKit.tween(holder, 0.35, { Position = UDim2.new(0.5, 0, 0, -170) }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+		paint(Color3.fromRGB(120, 110, 150))
+		UIKit.tween(holder, 0.4, { Position = UDim2.new(0.5, 0, 0, 120) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+		task.spawn(function()
+			-- flicker: walk up the tiers a few times, slowing down, ending on the real one
+			local steps = math.clamp(4 + tier * 2, 6, 18)
+			local delay = 0.04
+			for i = 1, steps do
+				local shownTier = ((i - 1) % math.max(tier + 1, 3)) + 1
+				if i == steps then
+					shownTier = tier
+				end
+				local r = Config.Rarities[math.min(shownTier, #Config.Rarities)]
+				paint(r.color)
+				ribbonText.Text = string.upper(r.name)
+				VFX.sound(Sounds.Click, 0.25, 0.9 + shownTier * 0.08)
+				task.wait(delay)
+				delay *= 1.16
+			end
+			-- land
+			nameText.Text = d.name
+			ribbonText.Text = string.upper(d.rarity)
+			paint(color)
+			cardGradient.Color = ColorSequence.new(UIKit.lighter(color, 0.15):Lerp(UIKit.PanelTop, 0.45), color:Lerp(UIKit.PanelBottom, 0.65))
+			stats.Text = ("%.1f kg   +%s/s"):format(d.sizeKg, string.format("%.1f", d.income))
+			UIKit.pop(card.holder, 0.18 + tier * 0.03)
+			UIKit.shineSweep(card.body, 22, 0.8)
+			VFX.sound((tier >= 3 or d.isNew) and Sounds.Fanfare or Sounds.Catch, tier >= 3 and 0.6 or 0.45)
+			if tier >= 3 then
+				screenFlash(color, math.min(0.25 + tier * 0.05, 0.6))
+			end
+			if d.mutation then
+				task.wait(0.25)
+				local stamp = UIKit.pill(holder, {
+					name = "Stamp", size = UDim2.fromOffset(150, 40), position = UDim2.new(0, -6, 1, -18), anchor = Vector2.new(0, 0.5), radius = 12,
+					top = Color3.fromRGB(255, 240, 140), bottom = Color3.fromRGB(240, 160, 30),
+				})
+				stamp.holder.Rotation = -8
+				stamp.holder.ZIndex = 9
+				UIKit.text(stamp.body, { text = string.upper(d.mutation) .. "!", bold = true, size = UDim2.new(1, -10, 0.68, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5) })
+				local s = Instance.new("UIScale")
+				s.Scale = 2.4
+				s.Parent = stamp.holder
+				UIKit.tween(s, 0.22, { Scale = 1 }, Enum.EasingStyle.Back)
+				VFX.sound(Sounds.Pop, 0.6, 0.8)
+				if d.mutation == "Giant" then
+					shake(0.45, 0.6)
+				end
+			end
+			if d.isNew then
+				task.wait(0.2)
+				local badge = UIKit.pill(holder, {
+					name = "New", size = UDim2.fromOffset(90, 36), position = UDim2.new(1, -4, 0, -12), anchor = Vector2.new(1, 0), radius = 12,
+					top = Color3.fromRGB(255, 110, 110), bottom = Color3.fromRGB(210, 40, 60),
+				})
+				badge.holder.Rotation = 8
+				UIKit.text(badge.body, { text = "NEW!", bold = true, size = UDim2.new(1, -8, 0.7, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2 })
+				UIKit.pop(badge.holder, 0.5)
+				if d.dexFound and d.dexTotal then
+					local dexLine = UIKit.pill(holder, {
+						name = "DexLine", size = UDim2.fromOffset(240, 34), position = UDim2.new(0.5, 30, 1, 2), anchor = Vector2.new(0.5, 0), radius = 12,
+						icon = Icons.Book, iconScale = 1.3, top = Color3.fromRGB(190, 130, 255), bottom = Color3.fromRGB(120, 60, 210),
+					})
+					UIKit.text(dexLine.body, { text = ("CRITTERDEX %d/%d"):format(d.dexFound, d.dexTotal), bold = true, size = UDim2.new(1, -50, 0.62, 0), position = UDim2.new(0, 36, 0.5, 0), anchor = Vector2.new(0, 0.5), alignX = Enum.TextXAlignment.Left })
+					UIKit.pop(dexLine.holder, 0.3)
+				end
+			end
+			task.wait(2.6)
+			UIKit.tween(holder, 0.35, { Position = UDim2.new(0.5, 0, 0, -190) }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 			task.wait(0.4)
 			holder:Destroy()
 		end)
@@ -241,6 +333,75 @@ function Controller.Start()
 		end)
 	end
 
+	--------------------------------------------------------------------------- small HUD moments
+
+	-- confetti raining over the whole screen (rewards, rebirth)
+	function confettiBurst()
+		local colors = { Color3.fromRGB(255, 90, 90), Color3.fromRGB(255, 210, 60), Color3.fromRGB(90, 220, 110), Color3.fromRGB(90, 170, 255), Color3.fromRGB(200, 120, 255) }
+		local size = camera.ViewportSize
+		for i = 1, 40 do
+			local f = Instance.new("Frame")
+			f.BorderSizePixel = 0
+			f.BackgroundColor3 = colors[(i % #colors) + 1]
+			f.Size = UDim2.fromOffset(math.random(8, 14), math.random(14, 22))
+			f.Position = UDim2.fromOffset(math.random(0, math.floor(size.X)), -30)
+			f.Rotation = math.random(0, 360)
+			f.ZIndex = 25
+			f.Parent = fxGui
+			local t = math.random(120, 200) / 100
+			UIKit.tween(f, t, {
+				Position = UDim2.fromOffset(f.Position.X.Offset + math.random(-120, 120), size.Y + 40), Rotation = f.Rotation + math.random(-360, 360),
+			}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			task.delay(t, function()
+				f:Destroy()
+			end)
+		end
+	end
+
+	-- "SO CLOSE! TRY AGAIN" under the timing bar area
+	function nearMissBanner()
+		local pill = UIKit.pill(center, {
+			name = "NearMiss", size = UDim2.fromOffset(330, 54), position = UDim2.new(0.5, 18, 0, 330), anchor = Vector2.new(0.5, 0),
+			icon = Icons.Exclaim, iconScale = 1.35, top = Color3.fromRGB(255, 200, 80), bottom = Color3.fromRGB(230, 120, 20),
+		})
+		UIKit.text(pill.body, { text = "SO CLOSE! TRY AGAIN!", bold = true, size = UDim2.new(1, -70, 0.6, 0), position = UDim2.new(0, 52, 0.5, 0), anchor = Vector2.new(0, 0.5), alignX = Enum.TextXAlignment.Left })
+		UIKit.pop(pill.holder, 0.35)
+		task.delay(1.3, function()
+			pill.holder:Destroy()
+		end)
+	end
+
+	-- global feed: a slim banner that slides in at the bottom of the centre area
+	local tickerQueue: { { text: string, rarity: string? } } = {}
+	local tickerBusy = false
+	function ticker(text: string, rarity: string?)
+		table.insert(tickerQueue, { text = text, rarity = rarity })
+		if tickerBusy then
+			return
+		end
+		tickerBusy = true
+		task.spawn(function()
+			while #tickerQueue > 0 do
+				local item = table.remove(tickerQueue, 1)
+				local c = item.rarity and rarityColor(item.rarity) or Color3.fromRGB(255, 196, 40)
+				local holder = Instance.new("Frame")
+				holder.BackgroundTransparency = 1
+				holder.Size = UDim2.fromOffset(560, 44)
+				holder.AnchorPoint = Vector2.new(0.5, 0)
+				holder.Position = UDim2.new(1.6, 0, 0, 400)
+				holder.Parent = center
+				local pill = UIKit.pill(holder, { size = UDim2.fromScale(1, 1), radius = 14, icon = Icons.Star, iconScale = 1.3, top = UIKit.lighter(c, 0.1):Lerp(UIKit.PanelTop, 0.5), bottom = UIKit.PanelBottom })
+				UIKit.text(pill.body, { text = item.text, bold = true, size = UDim2.new(1, -60, 0.56, 0), position = UDim2.new(0, 44, 0.5, 0), anchor = Vector2.new(0, 0.5), alignX = Enum.TextXAlignment.Left })
+				UIKit.tween(holder, 0.5, { Position = UDim2.new(0.5, 0, 0, 400) }, Enum.EasingStyle.Back)
+				task.wait(4.5)
+				UIKit.tween(holder, 0.4, { Position = UDim2.new(-0.6, 0, 0, 400) }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+				task.wait(0.45)
+				holder:Destroy()
+			end
+			tickerBusy = false
+		end)
+	end
+
 	--------------------------------------------------------------------------- server events
 
 	local handlers: { [string]: (any) -> () } = {
@@ -269,9 +430,79 @@ function Controller.Start()
 			end
 		end,
 		Collect = function(d)
-			VFX.stars(d.pos + Vector3.new(0, 1.5, 0), Color3.fromRGB(255, 215, 60), 22)
-			VFX.shockwave(d.pos, Color3.fromRGB(255, 205, 50), 6)
-			flyCoins(d.pos, d.amount)
+			if not d.screen then
+				VFX.stars(d.pos + Vector3.new(0, 1.5, 0), Color3.fromRGB(255, 215, 60), 22)
+				VFX.shockwave(d.pos, Color3.fromRGB(255, 205, 50), 6)
+			end
+			flyCoins(d.pos, d.amount, d.screen)
+		end,
+		-- reward claimed from a menu (quest, Critterdex page): coins burst from the screen centre
+		Reward = function(d)
+			flyCoins(Vector3.zero, d.amount, true)
+			VFX.sound(Sounds.Fanfare, 0.5)
+			confettiBurst()
+		end,
+		QuestDone = function(d)
+			announce({ text = "QUEST COMPLETE! " .. tostring(d.text), icon = Icons.Quests, rarity = "Uncommon" })
+		end,
+		NearMiss = function(d)
+			VFX.stars(d.pos + Vector3.new(0, 2, 0), Color3.fromRGB(255, 225, 90), 14)
+			VFX.floatText(d.pos + Vector3.new(0, 3.5, 0), d.userId == player.UserId and "SO CLOSE!" or "!?", Color3.fromRGB(255, 200, 80))
+			if d.userId == player.UserId then
+				VFX.sound(Sounds.Whoosh, 0.45, 1.5)
+				nearMissBanner()
+			end
+		end,
+		Hatch = function(d)
+			local c = rarityColor(d.rarity)
+			VFX.confetti(d.pos, 26)
+			VFX.stars(d.pos, c, 34)
+			VFX.shockwave(d.pos, c, 9)
+			VFX.beam(d.pos, c, 18, 5)
+			if nearMe(d.pos, 60) then
+				VFX.sound(Sounds.Pop, 0.7, 0.8)
+			end
+		end,
+		Rebirth = function(d)
+			local char = characterOf(d.userId)
+			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if hrp then
+				local feet = hrp.Position - Vector3.new(0, 3, 0)
+				local pink = Color3.fromRGB(255, 120, 210)
+				VFX.beam(feet, pink, 40, 8)
+				VFX.shockwave(feet, pink, 22)
+				VFX.stars(hrp.Position, Color3.fromRGB(255, 200, 250), 50)
+				VFX.confetti(hrp.Position + Vector3.new(0, 2, 0), 40)
+			end
+			if d.userId == player.UserId then
+				screenFlash(Color3.fromRGB(255, 160, 230), 0.6)
+				shake(0.5, 0.4)
+				confettiBurst()
+			end
+		end,
+		SummonCharge = function(d)
+			VFX.beam(d.pos, Color3.fromRGB(170, 120, 255), 30, d.duration or 5)
+			VFX.shockwave(d.pos, Color3.fromRGB(190, 140, 255), 14)
+			if nearMe(d.pos, 120) then
+				VFX.sound(Sounds.Whoosh, 0.6, 0.6)
+			end
+		end,
+		SummonCancel = function(d)
+			VFX.poof(d.pos, Color3.fromRGB(170, 140, 220))
+		end,
+		Summon = function(d)
+			local c = Color3.fromRGB(150, 90, 255)
+			VFX.beam(d.pos, c, 80, 6)
+			VFX.shockwave(d.pos, c, 40)
+			VFX.stars(d.pos + Vector3.new(0, 3, 0), Color3.fromRGB(220, 190, 255), 60)
+			VFX.confetti(d.pos + Vector3.new(0, 4, 0), 40)
+			if nearMe(d.pos, 200) then
+				shake(0.7, 0.5)
+				screenFlash(Color3.fromRGB(190, 150, 255), 0.45)
+			end
+		end,
+		Ticker = function(d)
+			ticker(d.text, d.rarity)
 		end,
 		SpeedUp = function(d)
 			local char = characterOf(d.userId)

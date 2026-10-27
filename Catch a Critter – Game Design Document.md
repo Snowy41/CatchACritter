@@ -238,11 +238,11 @@ Reset coins and upgrades for a permanent income multiplier, a new net tier and a
 
 An index of every species, with separate entries per mutation and a "Shiny Dex." Completing a zone or mutation page gives a reward such as a slot, a title or a cosmetic. It's the long goal that keeps collectors returning.
 
-### Critter Eggs (week 2 update)
+### Critter Eggs (built; release at launch or hold for week 2)
 
 Critters in your base occasionally lay an egg. Each egg has its own rarity roll, a chance to inherit a parent's mutation, and a hatch timer that is longer for rarer eggs. The base stays exciting between runs, and "my egg hatches in 2 hours" brings players back.
 
-### Summoning rituals (week 3 update)
+### Summoning rituals (built; release at launch or hold for week 3)
 
 Three or four players who each own a specific critter stand on a summoning circle together to spawn a Secret or Forgotten critter for everyone present. Works without chat and creates server-wide moments for clips.
 
@@ -252,7 +252,25 @@ A seasonal pass with a free track for everyone and a paid premium track. Rewards
 
 ### Daily quests
 
-Three short tasks per day, such as "catch 5 Rares" or "catch during a weather event." Missing a day costs nothing; there are no streak penalties.
+Three short tasks per day, such as "catch 5 Rares" or "catch during a weather event." Missing a day costs nothing; there are no streak penalties. Finishing all three gives a bonus egg.
+
+### Retention and excitement systems (built 2026-10-27)
+
+The aim is that players always want to come back, through anticipation, surprise and visible progress, never through pressure or losses.
+
+| System | What it does |
+| --- | --- |
+| Catch reveal | The catch card flickers through the rarities and lands on the result; a mutation stamp slams in, Giant shakes the camera, Rare+ flashes the screen, first finds get a NEW! sticker and the Critterdex count |
+| Near misses | A miss right next to the sweet spot shows "SO CLOSE! TRY AGAIN!" and the critter stumbles for a moment instead of fleeing |
+| Next-goal bar | Always shows the next target with progress: next speed level and the zone it opens, then rebirth, then the Critterdex |
+| Welcome back | The base keeps earning at 50 % while you're away, capped at 3 hours; a welcome-back screen hands the coins over. Nothing is lost for being away |
+| Daily quests | 3 per day from a pool (catch, rarity, weather, Critter of the Hour, nest, coin pad); rewards scale with income; all 3 = bonus egg |
+| Critterdex | Zone pages and mutation pages, critter previews (silhouettes for missing ones); a completed page gives coins and a title |
+| Titles | Earned from Critterdex pages, rebirths and the group; shown under the name on nametags |
+| Eggs | Base critters lay eggs while you're online; real-time hatch timers keep running while you're away |
+| Rebirth 1–3 | Reset coins and speed; keep critters, Critterdex and eggs; +50 % income and a wider sweet spot per rebirth |
+| Selling | Hold F on a base critter to sell it and free the slot |
+| Social moments | Legendary+ catches and hatches are announced to the server, Secret+ to every server (global ticker); summoning circle in the Meadow |
 
 ## First 60 seconds
 
@@ -321,10 +339,10 @@ Launch in late November or early December 2026: the HEP threshold drops to 100 i
 
 | Update | Content |
 | --- | --- |
-| Launch | Core loop, zones 1–3, rarities and mutations, guardians and nests, 3 weather types, spawn announcements, schedule board, Critterdex, Rebirth 1–3 |
+| Launch | Core loop, zones 1–3, rarities and mutations, guardians and nests, 3 weather types, spawn announcements, schedule board, Critterdex with titles, Rebirth 1–3, daily quests, welcome-back earnings |
 | Week 1 | Winter event (limited critters and mutation) and Zone 4: Crystal Cave |
-| Week 2 | Critter Eggs |
-| Week 3 | Summoning rituals and the first Secret and Forgotten critters |
+| Week 2 | Critter Eggs (already built – hold back if launch has enough content) |
+| Week 3 | Summoning rituals (already built) and the first Secret and Forgotten critters |
 | Week 4 | Helper critters and Critter Pass season 1 |
 | Ongoing | New critters, mutations and weather every Friday; Zone 5 and more rebirth levels; seasonal events |
 
@@ -332,10 +350,25 @@ Launch in late November or early December 2026: the HEP threshold drops to 100 i
 
 - [ ] ID verification, two-step verification and Roblox Plus on the publishing account
 - [ ] Content maturity questionnaire filled in, aiming for Minimal or Mild
-- [ ] Analytics events for the first-60-seconds funnel, day-1/day-7/day-28 retention and session length
+- [ ] Analytics (see below) – the last thing built before launch
 - [ ] Playtest with kids in the target age range (siblings, cousins, friends' kids, with parents' permission)
 - [ ] At least 4 weekly updates built or designed before launch day
 - [ ] Discord server and Roblox group ready
+
+### Analytics (last step before launch)
+
+Without data, retention work is guesswork. Built as the final task before launch, with Roblox's AnalyticsService (funnel, economy, progression and custom events) plus the creator dashboard's retention charts.
+
+| What | Events |
+| --- | --- |
+| First 60 seconds (onboarding funnel) | joined, first catch attempt, first catch, first deposit, first coin pad collect, first upgrade, first Rare seen |
+| Retention | day-1, day-7 and day-28 return rates and session length (dashboard); sessions per player (data.sessions) |
+| Where players quit | last meaningful action before leaving (stuck at a gate, base full, after a guardian bonk, after a near miss) |
+| Economy | coin sources (income, pad, quests, Critterdex, sell, welcome back) and sinks (speed, rebirth) |
+| Progression | speed level, zone reached, rebirth level, Critterdex count |
+| Features | quest claims, egg lays and hatches, summonings, weather mutations, catches by rarity and near misses |
+
+Targets to watch: first catch within 30 seconds for 90 % of new players, day-1 retention above 25 %, day-7 above 8 %.
 
 ## Free marketing plan
 

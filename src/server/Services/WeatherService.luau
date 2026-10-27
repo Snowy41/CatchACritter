@@ -14,6 +14,7 @@ local CritterDefs = require(ReplicatedStorage.Shared.CritterDefs)
 local BaseService = require(script.Parent.BaseService)
 local CritterService = require(script.Parent.CritterService)
 local DataService = require(script.Parent.DataService)
+local DexService = require(script.Parent.DexService)
 local FxService = require(script.Parent.FxService)
 local PlotService = require(script.Parent.PlotService)
 
@@ -85,6 +86,7 @@ local function rollMutations(w: WeatherDef)
 					entry.weather = w.mutation
 					local index = tonumber(key) :: number
 					BaseService.rerenderSlot(player, index)
+					DexService.register(player, entry)
 					local slot = PlotService.slot(plot, index)
 					if slot then
 						FxService.toAll("WeatherMutate", { pos = slot.Position + Vector3.new(0, slot.Size.Y / 2, 0), weather = w.mutation })

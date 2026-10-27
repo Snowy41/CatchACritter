@@ -42,6 +42,7 @@ type Wild = {
 	frozenBy: Player?,
 	nest: string?, -- zone of the guarded nest this critter sits in (nil = free-roaming)
 	special: boolean?, -- lucky/onboarding spawn: extra, not counted, leaves after a while
+	stunnedUntil: number?, -- after a near miss the critter stumbles (no fleeing) for a moment
 }
 
 local rng = Random.new()
@@ -105,6 +106,16 @@ local function rollEntry(zone: string, inNest: boolean?): Config.CritterEntry?
 	end
 	-- Critter of the Hour gets a boosted spawn weight
 	local featured = workspace:GetAttribute("CritterOfTheHour")
+	local available = {}
+	for _, sp in ipairs(list) do
+		if CritterDefs.isAvailable(sp) then
+			table.insert(available, sp)
+		end
+	end
+	if #available == 0 then
+		return nil
+	end
+	list = available
 	local total = 0
 	for _, sp in ipairs(list) do
 		total += (sp == featured) and Config.CritterOfTheHourBoost or 1
@@ -356,6 +367,9 @@ local function step(w: Wild, dt: number, now: number)
 	if w.frozenBy or w.nest then
 		return -- nest critters stay put: the guardian is their protection
 	end
+	if w.stunnedUntil and now < w.stunnedUntil then
+		return
+	end
 	local speed = Config.WanderSpeed
 	local threat, dist = nearestPlayer(w.pos)
 	if threat and w.rarity.fleeRadius > 0 and dist < w.rarity.fleeRadius then
@@ -409,6 +423,8 @@ function CritterService.requestCatch(player: Player, critterId: any)
 	end
 	local data = DataService.get(player)
 	local guaranteed = data ~= nil and data.totalCatches < Config.GuaranteedCatches
+	-- rebirths widen the sweet spot ("better net")
+	local netBonus = 1 + Config.RebirthCatchBonus * (data and data.rebirths or 0)
 	local session: CatchSession = { token = HttpService:GenerateGUID(false), critterId = critterId, started = os.clock(), guaranteed = guaranteed }
 	sessions[player] = session
 	w.frozenBy = player
@@ -423,7 +439,7 @@ function CritterService.requestCatch(player: Player, critterId: any)
 	return {
 		ok = true,
 		token = session.token,
-		zone = guaranteed and 1 or w.rarity.catchZone,
+		zone = guaranteed and 1 or math.min(1, w.rarity.catchZone * netBonus),
 		speed = w.rarity.cursorSpeed,
 		guaranteed = guaranteed,
 		name = CritterDefs[w.entry.species].displayName,
@@ -431,7 +447,7 @@ function CritterService.requestCatch(player: Player, critterId: any)
 	}
 end
 
-function CritterService.submitCatch(player: Player, token: any, hit: any)
+function CritterService.submitCatch(player: Player, token: any, hit: any, near: any)
 	local session = sessions[player]
 	if not session or session.token ~= token then
 		return { ok = false }
@@ -456,6 +472,12 @@ function CritterService.submitCatch(player: Player, token: any, hit: any)
 			CritterService.NestCaught:Fire(player, nestZone)
 		end
 		return { ok = true, success = true, entry = w.entry }
+	end
+	-- near miss: the critter stumbles for a moment, so trying again right away feels fair
+	if near == true then
+		w.stunnedUntil = os.clock() + Config.NearMissPause
+		FxService.toAll("NearMiss", { pos = w.pos, userId = player.UserId })
+		return { ok = true, success = false, near = true }
 	end
 	-- missed: the critter bolts away from the player
 	FxService.toAll("Miss", { pos = w.pos })

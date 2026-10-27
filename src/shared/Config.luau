@@ -83,6 +83,44 @@ Config.SpeedCosts = { 25, 250, 1000, 4000, 12000 } -- cost of level 1, 2, ... (l
 Config.StartSlots = 6
 Config.IncomeTick = 1 -- seconds
 
+-- Catch feel
+Config.NearMissMargin = 0.07 -- a miss this close to the sweet spot counts as "SO CLOSE!"
+Config.NearMissPause = 1.4 -- seconds the critter stumbles after a near miss (time for a retry)
+
+-- Welcome back: capped offline earnings, a reward for returning (never a loss for being away)
+Config.OfflineRate = 0.5 -- share of normal income produced while away
+Config.OfflineCapSeconds = 3 * 3600
+Config.OfflineMinSeconds = 120
+
+-- Rebirth: reset coins + upgrades (critters, Critterdex and eggs stay) for permanent bonuses
+Config.Rebirths = {
+	{ cost = 25000, speed = 3 },
+	{ cost = 150000, speed = 4 },
+	{ cost = 750000, speed = 5 },
+} :: { { cost: number, speed: number } }
+Config.RebirthIncomeBonus = 0.5 -- +50 % income per rebirth
+Config.RebirthCatchBonus = 0.12 -- +12 % sweet-spot width per rebirth ("better net")
+
+-- Eggs: base critters lay eggs while their owner is online; the hatch timer runs in real time
+Config.EggLayInterval = { 300, 540 } -- seconds online between eggs
+Config.EggCapacity = 3 -- nest spots per base; no eggs are laid while the nest is full
+Config.EggUpgradeChance = 0.2 -- chance an egg is one rarity above its parent
+Config.EggInheritChance = 0.25 -- chance the parent's natural mutation is passed on
+Config.EggHatchSeconds = {
+	Common = 180, Uncommon = 600, Rare = 1800, Epic = 3600,
+	Legendary = 7200, Mythic = 14400, Secret = 28800, Forgotten = 43200,
+} :: { [string]: number }
+
+-- Selling a base critter (frees the slot): coins = income per second * this
+Config.SellSeconds = 90
+
+-- Social
+Config.ServerAnnounceMinTier = 5 -- Legendary+: "RKG caught a LEGENDARY ...!" for the server
+Config.GlobalFeedMinTier = 7 -- Secret+: ticker message in every server
+Config.GroupId = nil :: number? -- Roblox group; members get the "Pack Member" title (cosmetic only)
+Config.SummonCooldown = 900 -- seconds between summoning rituals per server
+Config.SummonCharge = 5 -- seconds every pad has to stay occupied
+
 -- Saving
 Config.DataStoreName = "PlayerData_v1"
 Config.AutosaveInterval = 120

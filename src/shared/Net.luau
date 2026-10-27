@@ -10,11 +10,18 @@ local EVENTS = {
 	Notify = true, -- server -> client: toast message (text, kind)
 	Fx = true, -- server -> client: effect events (kind, data)
 	Knockback = true, -- server -> client: push the local character (velocity)
+	State = true, -- server -> client: player state value changed (key, value), see StateService
 }
 local FUNCTIONS = {
 	RequestCatch = true, -- client -> server: start a catch on a wild critter
 	SubmitCatch = true, -- client -> server: timing-bar result
 	BuyUpgrade = true, -- client -> server: buy an upgrade
+	GetState = true, -- client -> server: full player state snapshot
+	ClaimWelcome = true, -- client -> server: collect the welcome-back coins
+	ClaimQuest = true, -- client -> server: claim a finished daily quest (index)
+	ClaimDexPage = true, -- client -> server: claim a completed Critterdex page reward (page id)
+	SetTitle = true, -- client -> server: equip an earned title (id or nil)
+	Rebirth = true, -- client -> server: rebirth
 }
 
 local IS_SERVER = RunService:IsServer()

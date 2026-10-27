@@ -1,10 +1,12 @@
 -- Custom nametags: outlined display name, "@username" below, optional role (icon + label) above
--- (Owner / Admin / Moderator / Tester from shared/Roles). Replaces Roblox's default name display.
+-- (Owner / Admin / Moderator / Tester from shared/Roles) and the equipped title (player attribute
+-- "Title", shared/Titles) at the bottom. Replaces Roblox's default name display.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Roles = require(ReplicatedStorage.Shared.Roles)
+local Titles = require(ReplicatedStorage.Shared.Titles)
 
 local NametagService = {}
 NametagService.Priority = 70
@@ -45,6 +47,8 @@ local function label(parent: Instance, text: string, font: Enum.Font, color: Col
 end
 
 local function build(player: Player, root: BasePart, headHeight: number, role: Roles.Role?)
+	local title = Titles[player:GetAttribute("Title") or ""]
+	local extra = title and 22 or 0
 	local old = root:FindFirstChild("Nametag")
 	if old then
 		old:Destroy()
@@ -53,7 +57,7 @@ local function build(player: Player, root: BasePart, headHeight: number, role: R
 	-- follows real movement and ignores walk bob / idle sway.
 	local g = Instance.new("BillboardGui")
 	g.Name = "Nametag"
-	g.Size = UDim2.fromOffset(230, role and 84 or 56)
+	g.Size = UDim2.fromOffset(230, (role and 84 or 56) + extra)
 	g.StudsOffsetWorldSpace = Vector3.new(0, headHeight + 2.3, 0)
 	g.MaxDistance = 85
 	g.LightInfluence = 0
@@ -62,8 +66,11 @@ local function build(player: Player, root: BasePart, headHeight: number, role: R
 	g.Adornee = root
 
 	-- no panel: outlined text only
-	label(g, "@" .. player.Name, Enum.Font.FredokaOne, Color3.fromRGB(225, 218, 255), UDim2.new(1, 0, 0, 18), UDim2.new(0.5, 0, 1, -10), 2)
-	label(g, player.DisplayName, Enum.Font.LuckiestGuy, Color3.new(1, 1, 1), UDim2.new(1, 0, 0, 30), UDim2.new(0.5, 0, 1, -34), 3)
+	label(g, "@" .. player.Name, Enum.Font.FredokaOne, Color3.fromRGB(225, 218, 255), UDim2.new(1, 0, 0, 18), UDim2.new(0.5, 0, 1, -10 - extra), 2)
+	label(g, player.DisplayName, Enum.Font.LuckiestGuy, Color3.new(1, 1, 1), UDim2.new(1, 0, 0, 30), UDim2.new(0.5, 0, 1, -34 - extra), 3)
+	if title then
+		label(g, title.text, Enum.Font.FredokaOne, title.color, UDim2.new(1, 0, 0, 19), UDim2.new(0.5, 0, 1, -11), 2.2)
+	end
 
 	-- role: icon + gradient-coloured outlined text above the name
 	if role then
@@ -129,6 +136,11 @@ function NametagService.PlayerAdded(player: Player)
 	end)
 	player.CharacterAdded:Connect(function(character)
 		onCharacter(player, character)
+	end)
+	player:GetAttributeChangedSignal("Title"):Connect(function()
+		if player.Character then
+			onCharacter(player, player.Character)
+		end
 	end)
 end
 
