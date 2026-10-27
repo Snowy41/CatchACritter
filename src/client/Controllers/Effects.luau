@@ -200,13 +200,19 @@ function Controller.Start()
 			nameText.Text = d.name
 			ribbonText.Text = string.upper(d.rarity)
 			paint(color)
-			cardGradient.Color = ColorSequence.new(UIKit.lighter(color, 0.15):Lerp(UIKit.PanelTop, 0.45), color:Lerp(UIKit.PanelBottom, 0.65))
+			cardGradient.Color = ColorSequence.new(UIKit.lighter(color, 0.12), UIKit.darker(color, 0.5))
+			UIKit.pattern(card.body, "Paws", { radius = 22, transparency = 0.82, tile = 70, z = 2 })
 			stats.Text = ("%.1f kg   +%s/s"):format(d.sizeKg, string.format("%.1f", d.income))
 			UIKit.pop(card.holder, 0.18 + tier * 0.03)
 			UIKit.shineSweep(card.body, 22, 0.8)
 			VFX.sound((tier >= 3 or d.isNew) and Sounds.Fanfare or Sounds.Catch, tier >= 3 and 0.6 or 0.45)
 			if tier >= 3 then
 				screenFlash(color, math.min(0.25 + tier * 0.05, 0.6))
+				UIKit.sunburst(holder, { size = UDim2.fromOffset(420, 420), position = UDim2.new(0, 60, 0.5, 0), color = UIKit.lighter(color, 0.4), transparency = 0.3, z = 0 })
+			end
+			if tier >= 4 then
+				UIKit.rainbowStroke(card.body, { thickness = 4 })
+				UIKit.sparkles(card.body, { rate = 6, z = 9 })
 			end
 			if d.mutation then
 				task.wait(0.25)
@@ -228,12 +234,10 @@ function Controller.Start()
 			end
 			if d.isNew then
 				task.wait(0.2)
-				local badge = UIKit.pill(holder, {
-					name = "New", size = UDim2.fromOffset(90, 36), position = UDim2.new(1, -4, 0, -12), anchor = Vector2.new(1, 0), radius = 12,
-					top = Color3.fromRGB(255, 110, 110), bottom = Color3.fromRGB(210, 40, 60),
+				local badge = UIKit.ribbon(holder, {
+					name = "New", text = "NEW!", size = UDim2.fromOffset(120, 38), position = UDim2.new(1, -40, 0, 2), rotation = 10,
+					color = Color3.fromRGB(255, 60, 90),
 				})
-				badge.holder.Rotation = 8
-				UIKit.text(badge.body, { text = "NEW!", bold = true, size = UDim2.new(1, -8, 0.7, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2 })
 				UIKit.pop(badge.holder, 0.5)
 				if d.dexFound and d.dexTotal then
 					local dexLine = UIKit.pill(holder, {

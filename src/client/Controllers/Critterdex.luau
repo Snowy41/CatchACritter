@@ -232,6 +232,7 @@ function Controller.Start()
 		gp.PaddingTop = UDim.new(0, 4)
 		gp.PaddingLeft = UDim.new(0, 4)
 		gp.Parent = grid
+		local cards: { GuiObject } = {}
 		for i, key in ipairs(p.keys) do
 			local species, variant = variantOf(key)
 			local found = dex.found[key] == true
@@ -245,8 +246,13 @@ function Controller.Start()
 			UIKit.stroke(card, 3)
 			card.Parent = grid
 			card.ClipsDescendants = true
+			table.insert(cards, card)
+			if found and (variant == "Golden" or variant == "Rainbow" or variant == "Shiny") then
+				UIKit.rainbowStroke(card, { thickness = 4 })
+				UIKit.sparkles(card, { rate = 2, z = 9 })
+			end
 			if found then
-				UIKit.pattern(card, "Stars", { radius = 18, transparency = 0.86, tile = 34, z = 5 })
+				UIKit.pattern(card, "Paws", { radius = 18, transparency = 0.84, tile = 60, z = 5 })
 				UIKit.sunburst(card, { size = UDim2.fromOffset(230, 230), position = UDim2.new(0.5, 0, 0.36, 0), color = vc:Lerp(Color3.new(1, 1, 1), 0.5), transparency = 0.45, speed = 18, z = 5 })
 			end
 			-- floor glow under found critters
@@ -281,6 +287,7 @@ function Controller.Start()
 			})
 		end
 
+		UIKit.staggerIn(cards, 0.05)
 		-- reward bar
 		local done = foundCount == #p.keys
 		local claimed = dex.claimed[p.id] == true
@@ -304,6 +311,8 @@ function Controller.Start()
 		elseif done then
 			local b = Panel.actionButton(bar.body, { text = "CLAIM", size = UDim2.fromOffset(130, 48), position = UDim2.new(1, -78, 0.5, -3) })
 			Panel.pulse(b.wrapper, true)
+			UIKit.rainbowStroke(b.face, { thickness = 3.5 })
+			UIKit.sparkles(bar.body, { rate = 3, z = 9 })
 			b.face.Activated:Connect(function()
 				Panel.pulse(b.wrapper, false)
 				ClaimDexPage:InvokeServer(p.id)
@@ -342,6 +351,7 @@ function Controller.Start()
 				UIKit.text(b.face, { text = ("%d/%d"):format(found, total), bold = true, size = UDim2.new(0, 50, 0, 18), position = UDim2.new(1, -10, 0, 11), anchor = Vector2.new(1, 0), alignX = Enum.TextXAlignment.Right, z = 6, strokeThickness = 2 })
 			end
 			if ready then
+				UIKit.rainbowStroke(b.face, { thickness = 3.5 })
 				UIKit.icon(b.root, Icons.Exclaim, { size = UDim2.fromOffset(32, 32), position = UDim2.new(1, 8, 0, -10), anchor = Vector2.new(1, 0), z = 9 })
 			elseif claimed then
 				UIKit.icon(b.root, Icons.Check, { size = UDim2.fromOffset(28, 28), position = UDim2.new(1, 6, 0, -8), anchor = Vector2.new(1, 0), z = 9 })

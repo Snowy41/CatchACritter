@@ -1,7 +1,7 @@
 --!strict
 -- Tileable UI textures and effects (white on transparent, tinted with ImageColor3).
 -- Source: ui-resources.com community library (Textures category), uploaded 2026-10-27;
--- the sunburst is generated for this project.
+-- sunburst, paws, glow, sparkle and ribbon are generated for this project (tools/gen_ui_textures.py).
 
 return {
 	Stud = "rbxassetid://126140038631266", -- "Stud texture" (stud overlay, tile ~64 px)
@@ -10,4 +10,9 @@ return {
 	Halftone = "rbxassetid://124978681040517", -- "Halftone texture Pixelated" (alpha from luminance)
 	Checker = "rbxassetid://114017397642261", -- "Big Checkered Texture"
 	Sunburst = "rbxassetid://139218755536736", -- generated rays with radial fade
+	-- designed for this project (generated 2026-10-27)
+	Paws = "rbxassetid://92485044564638", -- tileable paw prints (4 per 512 tile)
+	Glow = "rbxassetid://101183792173525", -- soft radial glow
+	Sparkle = "rbxassetid://140337386401516", -- 4-point sparkle star
+	Ribbon = "rbxassetid://72923552784185", -- notched banner, 9-slice (SliceCenter 48,24,464,104)
 }

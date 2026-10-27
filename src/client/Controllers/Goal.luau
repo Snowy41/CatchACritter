@@ -70,6 +70,7 @@ function Controller.Start()
 	end
 
 	local ready = false
+	local readyStroke: UIStroke? = nil
 	local lastKey = ""
 	local function refresh()
 		local coins = player:GetAttribute("Coins") or 0
@@ -101,6 +102,16 @@ function Controller.Start()
 		value.Text = nowReady and "READY!" or (short(have) .. " / " .. short(need))
 		if nowReady ~= ready or text ~= lastKey then
 			ready, lastKey = nowReady, text
+			if nowReady and not readyStroke then
+				readyStroke = UIKit.rainbowStroke(pill.body, { thickness = 3.5 })
+			elseif not nowReady and readyStroke then
+				readyStroke:Destroy()
+				readyStroke = nil
+				local own = pill.body:FindFirstChildOfClass("UIStroke")
+				if own then
+					own.Enabled = true
+				end
+			end
 			fillGradient.Color = nowReady and ColorSequence.new(Color3.fromRGB(150, 255, 120), Color3.fromRGB(60, 190, 50))
 				or ColorSequence.new(Color3.fromRGB(255, 225, 90), Color3.fromRGB(240, 150, 20))
 			UIKit.pop(pill.holder, 0.12)

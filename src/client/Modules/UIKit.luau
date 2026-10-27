@@ -294,15 +294,35 @@ function UIKit.button(parent: Instance, props: { [string]: any })
 	gloss.Parent = face
 
 	if props.pattern ~= false then
-		UIKit.pattern(face, props.pattern or "Stars", { radius = radius, transparency = props.patternTransparency or 0.8, tile = props.patternTile or 46 })
+		UIKit.pattern(face, props.pattern or "Paws", { radius = radius, transparency = props.patternTransparency or 0.8, tile = props.patternTile or 46 })
 	end
 	UIKit.shineSweep(face, radius, props.shineInterval)
+
+	-- soft glow behind the button while hovered
+	local glow = Instance.new("ImageLabel")
+	glow.Name = "HoverGlow"
+	glow.BackgroundTransparency = 1
+	glow.Image = Textures.Glow
+	glow.ImageColor3 = lighter(color, 0.4)
+	glow.ImageTransparency = 1
+	glow.Size = UDim2.new(1.9, 0, 1.9, 0)
+	glow.Position = UDim2.fromScale(0.5, 0.55)
+	glow.AnchorPoint = Vector2.new(0.5, 0.5)
+	glow.ZIndex = 0
+	glow.Parent = root
 
 	local hovered, pressed = false, false
 	local function refresh()
 		tween(scale, 0.14, { Scale = pressed and 0.95 or (hovered and 1.07 or 1) }, Enum.EasingStyle.Back)
 		tween(face, 0.06, { Position = UDim2.fromOffset(0, pressed and depth - 1 or 0) })
+		tween(glow, 0.2, { ImageTransparency = hovered and 0.35 or 1 })
 	end
+	face.ClipsDescendants = true
+	face.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			UIKit.ripple(face, Vector2.new(input.Position.X, input.Position.Y))
+		end
+	end)
 	face.MouseEnter:Connect(function()
 		hovered = true
 		refresh()
@@ -421,6 +441,195 @@ function UIKit.sunburst(parent: Instance, props: { [string]: any }): ImageLabel
 	img.Parent = parent
 	spinning[img] = props.speed or 25
 	return img
+end
+
+--------------------------------------------------------------------------- effects
+
+local RAINBOW = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
+	ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 170, 40)),
+	ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 240, 60)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 230, 90)),
+	ColorSequenceKeypoint.new(0.67, Color3.fromRGB(60, 170, 255)),
+	ColorSequenceKeypoint.new(0.83, Color3.fromRGB(170, 90, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 70, 70)),
+})
+UIKit.Rainbow = RAINBOW
+
+local rotating: { [UIGradient]: number } = {}
+local bobbing: { [GuiObject]: { base: UDim2, amp: number, speed: number, phase: number } } = {}
+RunService.RenderStepped:Connect(function(dt)
+	local t = os.clock()
+	for g, speed in pairs(rotating) do
+		if g.Parent then
+			g.Rotation = (g.Rotation + speed * dt) % 360
+		else
+			rotating[g] = nil
+		end
+	end
+	for obj, b in pairs(bobbing) do
+		if obj.Parent then
+			obj.Position = b.base + UDim2.fromOffset(0, math.sin(t * b.speed + b.phase) * b.amp)
+		else
+			bobbing[obj] = nil
+		end
+	end
+end)
+
+-- Animated rainbow outline (premium / special items). Replaces the object's own UIStroke look.
+function UIKit.rainbowStroke(obj: GuiObject, props: { [string]: any }?): UIStroke
+	local o = props or {}
+	local st = Instance.new("UIStroke")
+	st.Name = "RainbowStroke"
+	st.Thickness = o.thickness or 4
+	st.Color = Color3.new(1, 1, 1)
+	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	st.LineJoinMode = Enum.LineJoinMode.Round
+	local old = obj:FindFirstChildOfClass("UIStroke")
+	if old and old ~= st then
+		old.Enabled = false
+	end
+	local g = Instance.new("UIGradient")
+	g.Color = o.colors or RAINBOW
+	g.Parent = st
+	st.Parent = obj
+	rotating[g] = o.speed or 120
+	return st
+end
+
+-- Rotating gradient sheen on a frame's own gradient (e.g. a premium card background).
+function UIKit.spinGradient(g: UIGradient, speed: number?)
+	rotating[g] = speed or 40
+end
+
+-- Soft round glow behind something.
+function UIKit.glow(parent: Instance, props: { [string]: any }): ImageLabel
+	local img = Instance.new("ImageLabel")
+	img.Name = "Glow"
+	img.BackgroundTransparency = 1
+	img.Image = Textures.Glow
+	img.ImageColor3 = props.color or Color3.fromRGB(255, 240, 160)
+	img.ImageTransparency = props.transparency or 0.3
+	img.Size = props.size or UDim2.fromScale(1.8, 1.8)
+	img.Position = props.position or UDim2.fromScale(0.5, 0.5)
+	img.AnchorPoint = Vector2.new(0.5, 0.5)
+	img.ZIndex = props.z or 1
+	img.Parent = parent
+	return img
+end
+
+-- Gentle idle bob (icons, rewards).
+function UIKit.bob(obj: GuiObject, amp: number?, speed: number?)
+	bobbing[obj] = { base = obj.Position, amp = amp or 3, speed = speed or 2.2, phase = math.random() * 6 }
+end
+
+-- Sparkles that pop up across a frame and fade, while it is visible. Stops when destroyed.
+function UIKit.sparkles(parent: GuiObject, props: { [string]: any }?)
+	local o = props or {}
+	local rate = o.rate or 3 -- per second
+	local colors = o.colors or { Color3.new(1, 1, 1), Color3.fromRGB(255, 240, 150) }
+	task.spawn(function()
+		while parent.Parent do
+			task.wait(1 / rate * (0.6 + math.random() * 0.8))
+			local onScreen = parent.Visible and parent.AbsoluteSize.X > 0
+			local anc = parent:FindFirstAncestorWhichIsA("LayerCollector")
+			if onScreen and anc and anc.Enabled then
+				local sp = Instance.new("ImageLabel")
+				sp.BackgroundTransparency = 1
+				sp.Image = Textures.Sparkle
+				sp.ImageColor3 = colors[math.random(1, #colors)]
+				local size = math.random(o.minSize or 14, o.maxSize or 30)
+				sp.Size = UDim2.fromOffset(0, 0)
+				sp.AnchorPoint = Vector2.new(0.5, 0.5)
+				sp.Position = UDim2.fromScale(math.random(), math.random())
+				sp.Rotation = math.random(0, 90)
+				sp.ZIndex = o.z or (parent.ZIndex + 5)
+				sp.Parent = parent
+				tween(sp, 0.35, { Size = UDim2.fromOffset(size, size), Rotation = sp.Rotation + 45 }, Enum.EasingStyle.Back)
+				task.delay(0.45, function()
+					local tw = tween(sp, 0.5, { Size = UDim2.fromOffset(0, 0), ImageTransparency = 1, Rotation = sp.Rotation + 45 })
+					tw.Completed:Wait()
+					sp:Destroy()
+				end)
+			end
+		end
+	end)
+end
+
+-- Notched ribbon banner ("LIMITED!", "BEST VALUE", "NEW!"), 9-sliced so it fits any width.
+function UIKit.ribbon(parent: Instance, props: { [string]: any })
+	local holder = Instance.new("Frame")
+	holder.Name = props.name or "Ribbon"
+	holder.BackgroundTransparency = 1
+	holder.Size = props.size or UDim2.fromOffset(150, 38)
+	holder.Position = props.position or UDim2.new()
+	holder.AnchorPoint = props.anchor or Vector2.new(0.5, 0.5)
+	holder.Rotation = props.rotation or 0
+	holder.ZIndex = props.z or 9
+	holder.Parent = parent
+	local img = Instance.new("ImageLabel")
+	img.Name = "Band"
+	img.BackgroundTransparency = 1
+	img.Image = Textures.Ribbon
+	img.ScaleType = Enum.ScaleType.Slice
+	img.SliceCenter = Rect.new(48, 24, 464, 104)
+	img.SliceScale = 0.32
+	img.ImageColor3 = props.color or Color3.fromRGB(255, 70, 90)
+	img.Size = UDim2.fromScale(1, 1)
+	img.ZIndex = holder.ZIndex
+	img.Parent = holder
+	if props.rainbow then
+		local g = Instance.new("UIGradient")
+		g.Color = RAINBOW
+		g.Parent = img
+		rotating[g] = 0 -- registered so it is cleaned up; offset animation below
+		task.spawn(function()
+			while g.Parent do
+				g.Offset = Vector2.new(((os.clock() * 0.4) % 2) - 1, 0)
+				task.wait()
+			end
+		end)
+	end
+	local label = UIKit.text(holder, {
+		text = props.text or "", bold = true, size = UDim2.new(1, -36, 0.62, 0), position = UDim2.fromScale(0.5, 0.46),
+		anchor = Vector2.new(0.5, 0.5), z = holder.ZIndex + 1, strokeThickness = 2.5,
+	})
+	return { holder = holder, band = img, label = label }
+end
+
+-- Click ripple: a white circle expanding from the input point inside a button face.
+function UIKit.ripple(face: GuiObject, screenPos: Vector2)
+	local r = Instance.new("Frame")
+	r.BackgroundColor3 = Color3.new(1, 1, 1)
+	r.BackgroundTransparency = 0.55
+	r.AnchorPoint = Vector2.new(0.5, 0.5)
+	local rel = screenPos - face.AbsolutePosition
+	r.Position = UDim2.fromOffset(rel.X, rel.Y)
+	r.Size = UDim2.fromOffset(0, 0)
+	r.ZIndex = face.ZIndex + 3
+	UIKit.corner(r, 999)
+	r.Parent = face
+	local d = math.max(face.AbsoluteSize.X, face.AbsoluteSize.Y) * 2.2
+	tween(r, 0.45, { Size = UDim2.fromOffset(d, d), BackgroundTransparency = 1 })
+	task.delay(0.5, function()
+		r:Destroy()
+	end)
+end
+
+-- Pops a list of GuiObjects in one after another (cards when a panel opens).
+function UIKit.staggerIn(objects: { GuiObject }, step: number?)
+	for i, obj in ipairs(objects) do
+		local s = obj:FindFirstChild("EnterScale") :: UIScale?
+		if not s then
+			s = Instance.new("UIScale")
+			;(s :: UIScale).Name = "EnterScale"
+			;(s :: UIScale).Parent = obj
+		end
+		;(s :: UIScale).Scale = 0.01
+		task.delay((i - 1) * (step or 0.05), function()
+			tween(s :: UIScale, 0.32, { Scale = 1 }, Enum.EasingStyle.Back)
+		end)
+	end
 end
 
 -- Glossy progress bar: dark rounded track, gradient fill with a highlight stripe, centred label.

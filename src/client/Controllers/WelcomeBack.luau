@@ -26,6 +26,8 @@ function Controller.Start()
 		color = Color3.fromRGB(255, 225, 90),
 	})
 	UIKit.text(c, { text = "Your critters kept working while you were gone!", size = UDim2.new(1, 0, 0, 24), position = UDim2.fromOffset(0, 176), strokeThickness = 2.5 })
+	UIKit.ribbon(c, { text = "FREE COINS!", size = UDim2.fromOffset(170, 36), position = UDim2.new(0.5, 150, 0, 76), rotation = 10, color = Color3.fromRGB(255, 60, 110), rainbow = false, z = 9 })
+	UIKit.sparkles(c, { rate = 4, z = 8 })
 	local collect = Panel.actionButton(c, { text = "COLLECT", size = UDim2.fromOffset(230, 62), position = UDim2.new(0.5, 0, 1, -40), anchor = Vector2.new(0.5, 0.5) })
 
 	local function formatAway(seconds: number): string
@@ -52,6 +54,8 @@ function Controller.Start()
 			end
 			amountText.Text = tostring(w.amount)
 			UIKit.pop(coin, 0.3)
+			UIKit.rainbowStroke(collect.face, { thickness = 4 })
+			Panel.pulse(collect.wrapper, true)
 		end
 	end)
 

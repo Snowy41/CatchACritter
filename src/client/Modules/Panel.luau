@@ -125,6 +125,8 @@ function Panel.sideButton(props: { [string]: any })
 		g.Color = ColorSequence.new(theme[1], theme[2])
 	end
 	local icon = UIKit.icon(b.face, props.icon, { size = UDim2.fromScale(0.74, 0.74), position = UDim2.fromScale(0.5, 0.42), anchor = Vector2.new(0.5, 0.5), z = 6 })
+	UIKit.bob(icon, 2, 2.4)
+	local readyStroke: UIStroke? = nil
 	UIKit.text(b.face, {
 		text = props.label or "", bold = true, size = UDim2.new(1, -8, 0, 22), position = UDim2.new(0.5, 0, 1, -6),
 		anchor = Vector2.new(0.5, 1), z = 7, strokeThickness = 3,
@@ -170,6 +172,17 @@ function Panel.sideButton(props: { [string]: any })
 		badgeText.Text = typeof(n) == "number" and tostring(n) or "!"
 		pulsing[badge.holder] = show and 0.16 or nil
 		wiggling[icon] = show or nil
+		-- something to claim: animated rainbow outline around the tile
+		if show and not readyStroke then
+			readyStroke = UIKit.rainbowStroke(b.face, { thickness = 4 })
+		elseif not show and readyStroke then
+			readyStroke:Destroy()
+			readyStroke = nil
+			local own = b.face:FindFirstChildOfClass("UIStroke")
+			if own then
+				own.Enabled = true
+			end
+		end
 		if not show then
 			icon.Rotation = 0
 		end
@@ -250,8 +263,11 @@ function Panel.new(props: { [string]: any })
 	end
 
 	-- title bar: big icon + title, left aligned
+	UIKit.glow(holder, { size = UDim2.fromOffset(150, 150), position = UDim2.fromOffset(28, 24), color = theme[1], transparency = 0.25, z = 8 })
 	local iconImg = UIKit.icon(holder, props.icon, { size = UDim2.fromOffset(84, 84), position = UDim2.fromOffset(-14, -18), z = 9 })
 	iconImg.Rotation = -8
+	UIKit.bob(iconImg, 3, 2)
+	UIKit.sparkles(window.body, { rate = 2.2, z = 8, minSize = 12, maxSize = 26 })
 	UIKit.text(holder, {
 		text = props.title or "", bold = true, size = UDim2.new(1, -220, 0, 40), position = UDim2.fromOffset(80, 13), z = 9,
 		alignX = Enum.TextXAlignment.Left, strokeThickness = 3.5,

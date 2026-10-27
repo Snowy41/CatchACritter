@@ -110,6 +110,8 @@ function Controller.Start()
 			local b = Panel.actionButton(card.body, { name = "Claim", text = "CLAIM", size = UDim2.fromOffset(136, 54), position = right })
 			UIKit.icon(b.root, Icons.Coin, { size = UDim2.fromOffset(38, 38), position = UDim2.new(0, -14, 0, -16), z = 8 })
 			Panel.pulse(b.wrapper, true)
+			UIKit.rainbowStroke(b.face, { thickness = 3.5 })
+			UIKit.sparkles(card.body, { rate = 3, z = 9 })
 			b.face.Activated:Connect(function()
 				Panel.pulse(b.wrapper, false)
 				ClaimQuest:InvokeServer(i)
@@ -140,6 +142,18 @@ function Controller.Start()
 			end
 			questCard(i, e)
 		end
+		if panel.isOpen() then
+			local cards = {}
+			for _, ch in ipairs(rows:GetChildren()) do
+				if ch:IsA("GuiObject") then
+					table.insert(cards, ch)
+				end
+			end
+			table.sort(cards, function(a, b)
+				return a.LayoutOrder < b.LayoutOrder
+			end)
+			UIKit.staggerIn(cards, 0.07)
+		end
 		for i, pip in ipairs(pips) do
 			local filled = i <= done
 			pip.BackgroundColor3 = filled and Color3.fromRGB(150, 255, 120) or Color3.fromRGB(40, 28, 70)
@@ -156,6 +170,8 @@ function Controller.Start()
 		end
 	end
 
+	panel.Opened:Connect(render)
+	UIKit.ribbon(bonusPill.holder, { text = "BONUS!", size = UDim2.fromOffset(120, 32), position = UDim2.new(1, -40, 0, -4), rotation = 8, color = Color3.fromRGB(255, 60, 110), z = 9 })
 	State.observe("quests", function(q)
 		current = q
 		render()

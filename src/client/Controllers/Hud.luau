@@ -66,6 +66,8 @@ function Controller.Start()
 		top = UIKit.Themes.Gold[1], bottom = UIKit.Themes.Gold[2], pattern = "Stars", patternTransparency = 0.8, patternTile = 40,
 	})
 	local coinText = pillText(coinPill.body, "0", 58, 0.64, true)
+	UIKit.shineSweep(coinPill.body, 16, 3)
+	UIKit.sparkles(coinPill.body, { rate = 0.8, z = 8, minSize = 10, maxSize = 18 })
 	coinText.Size = UDim2.new(1, -150, 0.64, 0)
 	local incomeText = UIKit.text(coinPill.body, {
 		text = "+0/s", size = UDim2.new(0, 84, 0.4, 0), position = UDim2.new(1, -12, 0.5, 0), anchor = Vector2.new(1, 0.5),
@@ -193,6 +195,7 @@ function Controller.Start()
 		return Config.SpeedCosts[(player:GetAttribute("SpeedLevel") or 0) + 1]
 	end
 	local wasAffordable: boolean? = nil
+	local shopStroke: UIStroke? = nil
 	local function refreshShop()
 		local cost = nextSpeedCost()
 		priceText.Text = cost and formatNumber(cost) or "MAX"
@@ -203,6 +206,16 @@ function Controller.Start()
 			UIKit.setButtonColor(shop, affordable and UIKit.Colors.Green or UIKit.Colors.Blue)
 			upgradeIcon.Visible = affordable
 			shopBurst.Visible = affordable
+			if affordable and not shopStroke then
+				shopStroke = UIKit.rainbowStroke(shop.face, { thickness = 4 })
+			elseif not affordable and shopStroke then
+				shopStroke:Destroy()
+				shopStroke = nil
+				local own = shop.face:FindFirstChildOfClass("UIStroke")
+				if own then
+					own.Enabled = true
+				end
+			end
 			if affordable then
 				UIKit.pop(shop.face, 0.15)
 			end

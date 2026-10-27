@@ -55,6 +55,8 @@ function Controller.Start()
 	local nextMedal, nextText = medal(120, Color3.fromRGB(150, 255, 120), Color3.fromRGB(50, 170, 45))
 	UIKit.icon(hero, Icons.Upgrade, { size = UDim2.fromOffset(54, 54), position = UDim2.new(0.5, 0, 0, 66), anchor = Vector2.new(0.5, 0.5), rotation = 90, z = 7 })
 	UIKit.shineSweep(nextMedal.body, 18, 2)
+	UIKit.ribbon(hero, { text = "FOREVER!", size = UDim2.fromOffset(120, 30), position = UDim2.new(0.5, 230, 0, 70), rotation = 12, color = Color3.fromRGB(255, 200, 40), z = 9 })
+	UIKit.sparkles(hero, { rate = 2.5, z = 8 })
 
 	--------------------------------------------------------------------------- requirements
 
@@ -97,6 +99,7 @@ function Controller.Start()
 	local maxStamp = UIKit.stamp(c, { text = "MAX REBIRTH!", position = UDim2.new(0.5, 0, 1, -32), size = UDim2.fromOffset(240, 52), slam = false, top = Color3.fromRGB(255, 214, 70), bottom = Color3.fromRGB(225, 130, 15) })
 	maxStamp.holder.Visible = false
 	local armed = false
+	local readyStroke: UIStroke? = nil
 
 	local function status()
 		local level = player:GetAttribute("Rebirth") or 0
@@ -129,6 +132,16 @@ function Controller.Start()
 		gains[1].Text = ("Income x%.1f"):format(1 + Config.RebirthIncomeBonus * (level + 1))
 		gains[2].Text = ("+%d%% catch zone"):format(math.floor(Config.RebirthCatchBonus * 100 * (level + 1) + 0.5))
 		local can = coinsOk and speedOk
+		if can and not readyStroke then
+			readyStroke = UIKit.rainbowStroke(action.face, { thickness = 4 })
+		elseif not can and readyStroke then
+			readyStroke:Destroy()
+			readyStroke = nil
+			local own = action.face:FindFirstChildOfClass("UIStroke")
+			if own then
+				own.Enabled = true
+			end
+		end
 		action.wrapper.Visible = true
 		maxStamp.holder.Visible = false
 		UIKit.setButtonColor(action, can and (armed and UIKit.Colors.Red or PINK) or GREY)
