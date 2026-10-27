@@ -254,6 +254,18 @@ function Panel.new(props: { [string]: any })
 	local scale = Instance.new("UIScale")
 	scale.Parent = holder
 
+	-- invisible click catcher behind everything in the panel: clicks on empty parts of the panel
+	-- stop here instead of falling through to the backdrop (which closes the panel)
+	local blocker = Instance.new("TextButton")
+	blocker.Name = "ClickBlocker"
+	blocker.Text = ""
+	blocker.AutoButtonColor = false
+	blocker.BackgroundTransparency = 1
+	blocker.Size = UDim2.fromScale(1, 1)
+	blocker.ZIndex = 0
+	blocker.Selectable = false
+	blocker.Parent = holder
+
 	-- outer frame: saturated theme gradient + stud pattern, thick outline, drop shadow
 	local window = UIKit.pill(holder, {
 		name = "Window", size = UDim2.fromScale(1, 1), radius = 26, top = theme[1], bottom = theme[2],
@@ -370,7 +382,18 @@ function Panel.new(props: { [string]: any })
 		end
 	end
 	closeBtn.face.Activated:Connect(self.close)
-	backdrop.Activated:Connect(self.close)
+	-- the backdrop closes the panel only for clicks that are really outside the panel
+	backdrop.Activated:Connect(function(input: InputObject?)
+		local p = input and Vector2.new(input.Position.X, input.Position.Y) or UserInputService:GetMouseLocation()
+		local inset = game:GetService("GuiService"):GetGuiInset()
+		local pos, size = holder.AbsolutePosition, holder.AbsoluteSize
+		for _, candidate in ipairs({ p, p - inset }) do
+			if candidate.X >= pos.X and candidate.X <= pos.X + size.X and candidate.Y >= pos.Y and candidate.Y <= pos.Y + size.Y then
+				return
+			end
+		end
+		self.close()
+	end)
 	return self
 end
 
