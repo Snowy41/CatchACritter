@@ -13,6 +13,7 @@ local ServerStorage = game:GetService("ServerStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local BaseService = require(script.Parent.BaseService)
 local CritterService = require(script.Parent.CritterService)
+local FxService = require(script.Parent.FxService)
 
 local GuardianService = {}
 
@@ -113,6 +114,12 @@ local function meterGui(model: Model): (BillboardGui, Frame, TextLabel)
 end
 
 local function setState(g: Guardian, state: string)
+	if g.state == "Chasing" and state ~= "Chasing" and g.target then
+		FxService.toPlayer(g.target, "Chased", { on = false })
+	end
+	if state == "Waking" then
+		FxService.toAll("GuardianWake", { pos = g.pos })
+	end
 	g.state = state
 	g.stateSince = os.clock()
 	g.model:SetAttribute("State", state)
@@ -204,6 +211,7 @@ local function bump(g: Guardian, player: Player)
 		away = away.Magnitude > 0.01 and away.Unit or Vector3.new(0, 0, 1)
 		knockbackRemote:FireClient(player, away * g.def.knockback + Vector3.new(0, g.def.knockback * 0.6, 0))
 	end
+	FxService.toAll("Bonk", { userId = player.UserId })
 	local entry, nest = BaseService.takeCarry(player)
 	if entry then
 		-- the critter scurries back: nest critters to their nest, wild ones just escape
@@ -250,6 +258,7 @@ local function update(g: Guardian, dt: number)
 			if target then
 				g.target = target
 				setState(g, "Chasing")
+				FxService.toPlayer(target, "Chased", { on = true, name = def.displayName })
 				BaseService.notify(target, def.displayName .. " is awake - RUN home!", "warn")
 			else
 				g.meter = 60
@@ -299,12 +308,7 @@ function GuardianService.onNestCaught(player: Player, zone: string)
 end
 
 function GuardianService.init()
-	local remotes = ReplicatedStorage:FindFirstChild("RuntimeRemotes") or Instance.new("Folder")
-	remotes.Name = "RuntimeRemotes"
-	remotes.Parent = ReplicatedStorage
-	knockbackRemote = Instance.new("RemoteEvent")
-	knockbackRemote.Name = "Knockback"
-	knockbackRemote.Parent = remotes
+	knockbackRemote = FxService.remote("Knockback")
 
 	for _, z in ipairs(CollectionService:GetTagged("SafeZone")) do
 		if z:IsA("BasePart") then

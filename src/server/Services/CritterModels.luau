@@ -41,6 +41,81 @@ local function applyMutation(model: Model, mutation: string?)
 	end
 end
 
+local RARITY_INDEX: { [string]: number } = {}
+for i, r in ipairs(Config.Rarities) do
+	RARITY_INDEX[r.name] = i
+end
+
+-- Rarity readability from far away: ground ring (Uncommon+), sparkles (Rare+), glow (Epic+),
+-- light pillar (Legendary+). Rings follow the model (welded to the root).
+local function applyRarityFx(model: Model, rarityName: string, beam: boolean)
+	local rarity = Config.RarityByName[rarityName]
+	local tier = RARITY_INDEX[rarityName] or 1
+	local root = model.PrimaryPart
+	if not rarity or not root or tier < 2 then
+		return
+	end
+	local _, size = model:GetBoundingBox()
+	local dia = math.max(size.X, size.Z) * 1.25
+	local ring = Instance.new("Part")
+	ring.Name = "RarityRing"
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Size = Vector3.new(0.08, dia, dia)
+	ring.CFrame = root.CFrame * CFrame.new(0, -root.Size.Y / 2 + 0.05, 0) * CFrame.Angles(0, 0, math.rad(90))
+	ring.Color = rarity.color
+	ring.Material = Enum.Material.Neon
+	ring.Transparency = 0.55
+	ring.CanCollide = false
+	ring.CanQuery = false
+	ring.CanTouch = false
+	ring.CastShadow = false
+	ring.Massless = true
+	ring.Anchored = false
+	ring.Parent = model
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = ring
+	weld.Parent = ring
+	if tier >= 3 then
+		local p = Instance.new("ParticleEmitter")
+		p.Name = "RaritySparkles"
+		p.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		p.Rate = 3 + tier
+		p.Lifetime = NumberRange.new(0.8, 1.4)
+		p.Speed = NumberRange.new(1, 2.5)
+		p.SpreadAngle = Vector2.new(60, 60)
+		p.EmissionDirection = Enum.NormalId.Top
+		p.Size = NumberSequence.new(0.45, 0)
+		p.LightEmission = 1
+		p.Color = ColorSequence.new(rarity.color:Lerp(Color3.new(1, 1, 1), 0.35))
+		p.Parent = ring
+	end
+	if tier >= 4 then
+		local light = Instance.new("PointLight")
+		light.Color = rarity.color
+		light.Range = 10
+		light.Brightness = 1.5
+		light.Parent = root
+	end
+	if beam and tier >= 5 then
+		local a0 = Instance.new("Attachment")
+		a0.Parent = ring
+		local a1 = Instance.new("Attachment")
+		a1.Position = Vector3.new(60, 0, 0) -- ring is rotated: local X points up
+		a1.Parent = ring
+		local b = Instance.new("Beam")
+		b.Attachment0 = a0
+		b.Attachment1 = a1
+		b.Width0 = 3
+		b.Width1 = 1
+		b.FaceCamera = true
+		b.LightEmission = 1
+		b.Color = ColorSequence.new(rarity.color)
+		b.Transparency = NumberSequence.new(0.35, 1)
+		b.Parent = ring
+	end
+end
+
 local function nameplate(model: Model, entry: Config.CritterEntry, offsetY: number)
 	local def = CritterDefs[entry.species]
 	local rarity = Config.RarityByName[entry.rarity]
@@ -83,6 +158,8 @@ end
 export type BuildOptions = {
 	scale: number?, -- extra scale on top of the mutation scale (e.g. carried critters)
 	label: boolean?,
+	fx: boolean?, -- rarity ring/sparkles (default true)
+	beam: boolean?, -- light pillar for Legendary+ (default false; wild critters use it)
 }
 
 function CritterModels.build(entry: Config.CritterEntry, opts: BuildOptions?): Model
@@ -97,6 +174,9 @@ function CritterModels.build(entry: Config.CritterEntry, opts: BuildOptions?): M
 		model:ScaleTo(scale)
 	end
 	applyMutation(model, entry.mutation)
+	if options.fx ~= false then
+		applyRarityFx(model, entry.rarity, options.beam == true)
+	end
 	model:SetAttribute("Species", entry.species)
 	model:SetAttribute("Rarity", entry.rarity)
 	model:SetAttribute("Mutation", entry.mutation)

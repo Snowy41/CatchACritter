@@ -364,7 +364,7 @@ local function finishCatch(hit: boolean)
 	busy = false
 	if result and result.ok then
 		if result.success then
-			toast("CAUGHT!", "success")
+			-- the catch card (Effects) celebrates successful catches
 		else
 			toast("It got away!", "warn")
 		end

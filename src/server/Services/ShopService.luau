@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local BaseService = require(script.Parent.BaseService)
 local DataService = require(script.Parent.DataService)
+local FxService = require(script.Parent.FxService)
 
 local ShopService = {}
 
@@ -28,6 +29,7 @@ function ShopService.buy(player: Player, upgrade: any)
 	player:SetAttribute("SpeedLevel", data.speedLevel)
 	BaseService.applyWalkSpeed(player)
 	BaseService.notify(player, ("Speed %d unlocked!"):format(nextLevel), "success")
+	FxService.toAll("SpeedUp", { userId = player.UserId, level = nextLevel })
 	return { ok = true, level = nextLevel }
 end
 

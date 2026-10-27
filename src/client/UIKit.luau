@@ -3,7 +3,15 @@
 --  * 3D buttons: gradient face on a darker lip, shine sweep, hover grow, press sink
 --  * text: bold game font with a thick dark outline, vertically centred helpers
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+
+local Sounds = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Sounds"))
+local VFX -- lazily required (VFX lives next to this module)
+local function click()
+	VFX = VFX or require(script.Parent:WaitForChild("VFX"))
+	VFX.sound(Sounds.Click, 0.5)
+end
 
 local UIKit = {}
 
@@ -284,6 +292,7 @@ function UIKit.button(parent: Instance, props: { [string]: any })
 	face.Activated:Connect(function()
 		pressed = false
 		refresh()
+		click()
 	end)
 
 	root.Parent = parent

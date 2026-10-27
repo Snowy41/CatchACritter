@@ -10,6 +10,7 @@ local Icons = require(ReplicatedStorage.Shared.Icons)
 local CritterModels = require(script.Parent.CritterModels)
 local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
+local FxService = require(script.Parent.FxService)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
@@ -131,7 +132,7 @@ local function attachCarry(player: Player, entry: Config.CritterEntry): Model?
 	if not head then
 		return nil
 	end
-	local model = CritterModels.build(entry, { scale = 0.6, label = false })
+	local model = CritterModels.build(entry, { scale = 0.6, label = false, fx = false })
 	for _, p in ipairs(model:GetDescendants()) do
 		if p:IsA("BasePart") then
 			p.Anchored = false
@@ -163,11 +164,23 @@ function BaseService.startCarry(player: Player, entry: Config.CritterEntry, nest
 	player:SetAttribute("CarryingRarity", entry.rarity)
 	BaseService.applyWalkSpeed(player)
 	local data = DataService.get(player)
+	local isNew = false
 	if data then
 		data.totalCatches += 1
 		player:SetAttribute("TotalCatches", data.totalCatches)
-		data.dex[("%s/%s/%s"):format(entry.species, entry.rarity, entry.mutation or "None")] = true
+		local key = ("%s/%s/%s"):format(entry.species, entry.rarity, entry.mutation or "None")
+		isNew = not data.dex[key]
+		data.dex[key] = true
 	end
+	FxService.toPlayer(player, "CatchCard", {
+		name = CritterDefs[entry.species].displayName,
+		rarity = entry.rarity,
+		mutation = entry.mutation,
+		sizeKg = entry.sizeKg,
+		income = incomeOf(entry),
+		isNew = isNew,
+		fromNest = nestZone ~= nil,
+	})
 	return true
 end
 
@@ -229,6 +242,10 @@ local function tryDeposit(player: Player)
 	data.base[tostring(index)] = c.entry
 	BaseService.dropCarry(player)
 	showOnSlot(plot, index, c.entry)
+	local slot = PlotService.slot(plot, index)
+	if slot then
+		FxService.toAll("Deposit", { pos = slot.Position + Vector3.new(0, slot.Size.Y / 2, 0), rarity = c.entry.rarity })
+	end
 	notify(player, ("%s placed! +%s coins/s"):format(CritterDefs[c.entry.species].displayName, string.format("%.1f", incomeOf(c.entry))), "success")
 end
 
@@ -334,7 +351,9 @@ local function collect(player: Player)
 	data.coins += amount
 	player:SetAttribute("Coins", data.coins)
 	updatePad(player)
-	notify(player, ("+%d coins"):format(amount), "coins")
+	local plot = PlotService.getPlot(player)
+	local pad = plot and plot:FindFirstChild("CoinPad") :: BasePart?
+	FxService.toPlayer(player, "Collect", { pos = pad and pad.Position or Vector3.zero, amount = amount })
 end
 
 local function hookPads()

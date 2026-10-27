@@ -10,6 +10,7 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local CritterDefs = require(ReplicatedStorage.Shared.CritterDefs)
 local CritterModels = require(script.Parent.CritterModels)
+local FxService = require(script.Parent.FxService)
 
 local CritterService = {}
 
@@ -156,7 +157,7 @@ local function spawnOne(zone: string)
 		return
 	end
 	local area = areas[rng:NextInteger(1, #areas)]
-	local model = CritterModels.build(entry)
+	local model = CritterModels.build(entry, { beam = true })
 	local id = HttpService:GenerateGUID(false)
 	model:SetAttribute("CritterId", id)
 	model:SetAttribute("Zone", zone)
@@ -352,6 +353,7 @@ function CritterService.submitCatch(player: Player, token: any, hit: any)
 	end
 	if success then
 		local nestZone = w.nest
+		FxService.toAll("Catch", { pos = w.pos, rarity = w.entry.rarity })
 		despawn(w.id)
 		if nestZone and CritterService.onNestCaught then
 			CritterService.onNestCaught(player, nestZone)
@@ -359,6 +361,7 @@ function CritterService.submitCatch(player: Player, token: any, hit: any)
 		return { ok = true, success = true, entry = w.entry }
 	end
 	-- missed: the critter bolts away from the player
+	FxService.toAll("Miss", { pos = w.pos })
 	w.fleeUntil = os.clock() + 1.2
 	local char = player.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
