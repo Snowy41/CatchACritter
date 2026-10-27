@@ -13,8 +13,10 @@ local CritterModels = require(script.Parent.CritterModels)
 
 local CritterService = {}
 
--- set by Main: function(player, entry) -> boolean (false = player can't take it)
-CritterService.onCaught = nil :: ((Player, Config.CritterEntry) -> boolean)?
+-- set by Main: function(player, entry, nestZone) -> boolean (false = player can't take it)
+CritterService.onCaught = nil :: ((Player, Config.CritterEntry, string?) -> boolean)?
+-- set by Main: called after a critter was snatched out of a guarded nest
+CritterService.onNestCaught = nil :: ((Player, string) -> ())?
 -- set by Main: function(player) -> boolean (true = player may start a catch, e.g. not carrying)
 CritterService.canCatch = nil :: ((Player) -> boolean)?
 -- set by Main: function(player) -> number of catches so far
@@ -33,6 +35,7 @@ type Wild = {
 	pauseUntil: number,
 	fleeUntil: number,
 	frozenBy: Player?,
+	nest: string?, -- zone of the guarded nest this critter sits in (nil = free-roaming)
 }
 
 local rng = Random.new()
@@ -41,14 +44,15 @@ local wild: { [string]: Wild } = {}
 local areasByZone: { [string]: { BasePart } } = {}
 local countByZone: { [string]: number } = {}
 local speciesByZone: { [string]: { string } } = {}
+local nests: { [string]: BasePart } = {} -- zone -> NestSpot
+local nestCount: { [string]: number } = {}
 
 type CatchSession = { token: string, critterId: string, started: number, guaranteed: boolean }
 local sessions: { [Player]: CatchSession } = {}
 
 --------------------------------------------------------------------------- rolls
 
-local function rollRarity(zone: string): string
-	local weights = Config.ZoneRarityWeights[zone]
+local function rollRarity(weights: { [string]: number }): string
 	local total = 0
 	for _, w in pairs(weights) do
 		total += w
@@ -77,7 +81,7 @@ local function rollMutation(): string?
 	return nil
 end
 
-local function rollEntry(zone: string): Config.CritterEntry?
+local function rollEntry(zone: string, inNest: boolean?): Config.CritterEntry?
 	local list = speciesByZone[zone]
 	if not list or #list == 0 then
 		return nil
@@ -88,7 +92,7 @@ local function rollEntry(zone: string): Config.CritterEntry?
 	local factor = 0.7 + 0.7 * (rng:NextNumber() + rng:NextNumber()) / 2
 	return {
 		species = species,
-		rarity = rollRarity(zone),
+		rarity = rollRarity(inNest and Config.NestRarityWeights[zone] or Config.ZoneRarityWeights[zone]),
 		mutation = rollMutation(),
 		sizeKg = math.floor(def.baseKg * factor * 10 + 0.5) / 10,
 	}
@@ -177,15 +181,62 @@ local function spawnOne(zone: string)
 	countByZone[zone] = (countByZone[zone] or 0) + 1
 end
 
-local function despawn(id: string)
+local function spawnNestCritter(zone: string, entry: Config.CritterEntry?)
+	local nest = nests[zone]
+	local e = entry or rollEntry(zone, true)
+	if not nest or not e or (nestCount[zone] or 0) >= Config.NestCritters then
+		return
+	end
+	local model = CritterModels.build(e)
+	local id = HttpService:GenerateGUID(false)
+	model:SetAttribute("CritterId", id)
+	model:SetAttribute("Zone", zone)
+	model:SetAttribute("InNest", true)
+	local slot = nestCount[zone] or 0
+	local a = rng:NextNumber(0, math.pi * 2) + slot * math.pi
+	local pos = nest.Position + Vector3.new(math.cos(a) * 2.2, 0, math.sin(a) * 2.2)
+	local w: Wild = {
+		id = id,
+		model = model,
+		entry = e,
+		rarity = Config.RarityByName[e.rarity],
+		zone = zone,
+		area = nest,
+		pos = pos,
+		target = pos,
+		yaw = rng:NextNumber(0, math.pi * 2),
+		pauseUntil = math.huge,
+		fleeUntil = 0,
+		frozenBy = nil,
+		nest = zone,
+	}
+	place(w)
+	model.Parent = folder
+	wild[id] = w
+	nestCount[zone] = slot + 1
+end
+
+local function despawn(id: string, respawn: boolean?)
 	local w = wild[id]
 	if not w then
 		return
 	end
 	wild[id] = nil
-	countByZone[w.zone] -= 1
 	w.model:Destroy()
-	task.delay(Config.RespawnDelay, spawnOne, w.zone)
+	if w.nest then
+		nestCount[w.nest] -= 1
+		if respawn ~= false then
+			task.delay(Config.NestRespawn, spawnNestCritter, w.nest)
+		end
+	else
+		countByZone[w.zone] -= 1
+		task.delay(Config.RespawnDelay, spawnOne, w.zone)
+	end
+end
+
+-- A critter dropped by a player (guardian bump) runs straight back into its nest.
+function CritterService.returnToNest(zone: string, entry: Config.CritterEntry)
+	spawnNestCritter(zone, entry)
 end
 
 --------------------------------------------------------------------------- movement
@@ -206,8 +257,8 @@ local function nearestPlayer(pos: Vector3): (Vector3?, number)
 end
 
 local function step(w: Wild, dt: number, now: number)
-	if w.frozenBy then
-		return
+	if w.frozenBy or w.nest then
+		return -- nest critters stay put: the guardian is their protection
 	end
 	local speed = Config.WanderSpeed
 	local threat, dist = nearestPlayer(w.pos)
@@ -297,10 +348,14 @@ function CritterService.submitCatch(player: Player, token: any, hit: any)
 	-- the timing bar needs at least a moment; instant answers are not accepted
 	local success = (session.guaranteed or hit == true) and (os.clock() - session.started) >= 0.25
 	if success and CritterService.onCaught then
-		success = CritterService.onCaught(player, w.entry)
+		success = CritterService.onCaught(player, w.entry, w.nest)
 	end
 	if success then
+		local nestZone = w.nest
 		despawn(w.id)
+		if nestZone and CritterService.onNestCaught then
+			CritterService.onNestCaught(player, nestZone)
+		end
 		return { ok = true, success = true, entry = w.entry }
 	end
 	-- missed: the critter bolts away from the player
@@ -351,6 +406,15 @@ function CritterService.init()
 	for zone, n in pairs(Config.WildPerZone) do
 		for _ = 1, n do
 			spawnOne(zone)
+		end
+	end
+	for _, spot in ipairs(CollectionService:GetTagged("NestSpot")) do
+		local zone = spot:GetAttribute("Zone")
+		if spot:IsA("BasePart") and zone and Config.NestRarityWeights[zone] and speciesByZone[zone] then
+			nests[zone] = spot
+			for _ = 1, Config.NestCritters do
+				spawnNestCritter(zone)
+			end
 		end
 	end
 	local acc = 0

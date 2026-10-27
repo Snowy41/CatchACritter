@@ -9,6 +9,7 @@ local PlotService = require(Services.PlotService)
 local BaseService = require(Services.BaseService)
 local CritterService = require(Services.CritterService)
 local ShopService = require(Services.ShopService)
+local GuardianService = require(Services.GuardianService)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
@@ -25,7 +26,9 @@ CritterService.totalCatches = function(player)
 	local data = DataService.get(player)
 	return data and data.totalCatches or 0
 end
+CritterService.onNestCaught = GuardianService.onNestCaught
 CritterService.init()
+GuardianService.init()
 
 local requestCatch = Remotes:WaitForChild("RequestCatch") :: RemoteFunction
 local submitCatch = Remotes:WaitForChild("SubmitCatch") :: RemoteFunction
@@ -44,10 +47,12 @@ local function onCharacter(player: Player, character: Model)
 end
 
 local function onPlayerAdded(player: Player)
-	DataService.load(player)
+	local data = DataService.load(player)
 	if not player.Parent then
 		return -- left while loading
 	end
+	-- first session: Meadow guardians stay asleep for this player (GDD onboarding rule)
+	player:SetAttribute("Newcomer", data.sessions <= 1)
 	PlotService.assign(player)
 	BaseService.onPlayerReady(player)
 	player.CharacterAdded:Connect(function(character)

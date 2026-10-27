@@ -57,6 +57,49 @@ Config.WildPerZone = { Meadow = 16, Swamp = 0, Volcano = 0 } :: { [string]: numb
 Config.WanderSpeed = 4
 Config.RespawnDelay = 3
 
+-- Guarded nests: rarer critters sit in the nest next to the sleeping zone guardian.
+Config.NestRarityWeights = {
+	Meadow = { Uncommon = 55, Rare = 40, Epic = 5 },
+} :: { [string]: { [string]: number } }
+Config.NestCritters = 2 -- critters sitting in each nest
+Config.NestRespawn = 25 -- seconds until a caught nest critter is replaced
+
+export type GuardianDef = {
+	template: string,
+	displayName: string,
+	wakeRadius: number, -- players inside this radius around the nest fill the meter
+	wakeIdle: number, -- meter per second for a player standing/walking slowly nearby
+	wakeRunning: number, -- extra meter per second while running nearby
+	wakeOnCatch: number, -- instant meter when someone snatches a nest critter
+	wakeDecay: number, -- meter lost per second with nobody nearby
+	chaseSpeed: number,
+	returnSpeed: number,
+	chaseTime: number, -- gives up after this many seconds
+	chaseLeash: number, -- gives up when this far from its spot
+	bumpRange: number,
+	knockback: number,
+	protectNewcomers: boolean, -- stays asleep for players in their first session (GDD onboarding)
+}
+
+Config.Guardians = {
+	Meadow = {
+		template = "Bramblebear",
+		displayName = "Bramblebear",
+		wakeRadius = 30,
+		wakeIdle = 5,
+		wakeRunning = 13,
+		wakeOnCatch = 45,
+		wakeDecay = 10,
+		chaseSpeed = 13,
+		returnSpeed = 9,
+		chaseTime = 22,
+		chaseLeash = 190,
+		bumpRange = 7,
+		knockback = 26,
+		protectNewcomers = true,
+	},
+} :: { [string]: GuardianDef }
+
 -- Catching
 Config.CatchRange = 11
 Config.CatchTimeout = 8 -- seconds a critter stays frozen while the timing bar is open

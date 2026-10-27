@@ -15,6 +15,7 @@ export type Data = {
 	pendingCoins: number,
 	speedLevel: number,
 	totalCatches: number,
+	sessions: number, -- number of times the player has joined (1 = first session)
 	slotsUnlocked: number,
 	base: { [string]: Config.CritterEntry }, -- slot index (as string) -> critter
 	dex: { [string]: boolean }, -- "Species/Rarity/Mutation" -> seen
@@ -29,6 +30,7 @@ local function defaultData(): Data
 		pendingCoins = 0,
 		speedLevel = 0,
 		totalCatches = 0,
+		sessions = 0,
 		slotsUnlocked = Config.StartSlots,
 		base = {},
 		dex = {},
@@ -86,8 +88,10 @@ function DataService.load(player: Player): Data
 		data = defaultData()
 		canSave = false
 	end
-	sessions[player] = { data = data :: Data, canSave = canSave }
-	return data :: Data
+	local d = data :: Data
+	d.sessions += 1
+	sessions[player] = { data = d, canSave = canSave }
+	return d
 end
 
 function DataService.get(player: Player): Data?

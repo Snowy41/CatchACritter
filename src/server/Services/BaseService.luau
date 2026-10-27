@@ -15,7 +15,7 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local BaseService = {}
 
-local carrying: { [Player]: { entry: Config.CritterEntry, model: Model } } = {}
+local carrying: { [Player]: { entry: Config.CritterEntry, model: Model, nest: string? } } = {}
 local lastFullWarning: { [Player]: number } = {}
 
 local function notify(player: Player, text: string, kind: string?)
@@ -150,7 +150,7 @@ local function attachCarry(player: Player, entry: Config.CritterEntry): Model?
 end
 
 -- Called by CritterService when a catch succeeds. Returns false if the player can't take it.
-function BaseService.startCarry(player: Player, entry: Config.CritterEntry): boolean
+function BaseService.startCarry(player: Player, entry: Config.CritterEntry, nestZone: string?): boolean
 	if carrying[player] then
 		return false
 	end
@@ -158,7 +158,7 @@ function BaseService.startCarry(player: Player, entry: Config.CritterEntry): boo
 	if not model then
 		return false
 	end
-	carrying[player] = { entry = entry, model = model }
+	carrying[player] = { entry = entry, model = model, nest = nestZone }
 	player:SetAttribute("Carrying", CritterDefs[entry.species].displayName)
 	player:SetAttribute("CarryingRarity", entry.rarity)
 	BaseService.applyWalkSpeed(player)
@@ -169,6 +169,21 @@ function BaseService.startCarry(player: Player, entry: Config.CritterEntry): boo
 		data.dex[("%s/%s/%s"):format(entry.species, entry.rarity, entry.mutation or "None")] = true
 	end
 	return true
+end
+
+-- Removes the carried critter and returns it (used when a guardian knocks the player over).
+function BaseService.takeCarry(player: Player): (Config.CritterEntry?, string?)
+	local c = carrying[player]
+	if not c then
+		return nil, nil
+	end
+	BaseService.dropCarry(player)
+	return c.entry, c.nest
+end
+
+function BaseService.carriedNest(player: Player): string?
+	local c = carrying[player]
+	return c and c.nest
 end
 
 function BaseService.dropCarry(player: Player)
