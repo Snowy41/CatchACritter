@@ -10,10 +10,13 @@ local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local CritterDefs = require(ReplicatedStorage.Shared.CritterDefs)
+local Zones = require(ReplicatedStorage.Shared.Zones)
+local BaseService = require(script.Parent.BaseService)
 local CritterService = require(script.Parent.CritterService)
 local FxService = require(script.Parent.FxService)
 
 local EventService = {}
+EventService.Priority = 60
 
 local rng = Random.new()
 local nextLucky = 0
@@ -109,9 +112,9 @@ end
 
 --------------------------------------------------------------------------- onboarding
 
--- Called by BaseService after a deposit. A newcomer's first deposit triggers the scripted Rare
--- spawn of the "first 60 seconds" (GDD), close to the Meadow entrance.
-function EventService.onDeposit(player: Player)
+-- A newcomer's first deposit (BaseService.Deposited) triggers the scripted Rare spawn of the
+-- "first 60 seconds" (GDD), close to the Meadow entrance.
+local function onDeposit(player: Player)
 	if onboarded[player] or player:GetAttribute("Newcomer") ~= true then
 		return
 	end
@@ -123,7 +126,7 @@ function EventService.onDeposit(player: Player)
 	end)
 end
 
-function EventService.release(player: Player)
+function EventService.PlayerRemoving(player: Player)
 	onboarded[player] = nil
 end
 
@@ -136,20 +139,44 @@ local function setRow(board: Instance, i: number, text: string)
 	end
 end
 
+local WEATHER_NAMES = { Rain = "Rain", Snowstorm = "Snowstorm", RainbowStorm = "Rainbow Storm", Clear = "Clear" }
+
 local function updateBoards()
 	local now = os.time()
 	local species = workspace:GetAttribute("CritterOfTheHour")
 	local cotH = species and CritterDefs[species] and CritterDefs[species].displayName or "?"
+	local weather = workspace:GetAttribute("Weather") or "Clear"
+	local weatherTitle, weatherLine
+	if weather ~= "Clear" then
+		weatherTitle = "WEATHER NOW"
+		weatherLine = ("%s  -  %s left"):format(WEATHER_NAMES[weather] or weather, formatTime((workspace:GetAttribute("WeatherEnds") or now) - now))
+	else
+		local nextW = workspace:GetAttribute("NextWeather") or "?"
+		weatherTitle = "NEXT WEATHER"
+		weatherLine = ("%s in %s"):format(WEATHER_NAMES[nextW] or nextW, formatTime((workspace:GetAttribute("NextWeatherAt") or now) - now))
+	end
 	for _, board in ipairs(CollectionService:GetTagged("ScheduleBoard")) do
-		setRow(board, 1, "CRITTER OF THE HOUR")
-		setRow(board, 2, ("%s  -  %s"):format(cotH, formatTime((workspace:GetAttribute("CritterOfTheHourEnds") or now) - now)))
-		setRow(board, 3, "LUCKY SPAWN")
-		setRow(board, 4, "in " .. formatTime(nextLucky - now))
+		setRow(board, 1, weatherTitle)
+		setRow(board, 2, weatherLine)
+		setRow(board, 3, "CRITTER OF THE HOUR")
+		setRow(board, 4, ("%s  -  %s"):format(cotH, formatTime((workspace:GetAttribute("CritterOfTheHourEnds") or now) - now)))
 		setRow(board, 5, "UPDATE in " .. formatTime(secondsToUpdate(now)))
 	end
 end
 
-function EventService.init()
+-- zones that currently get lucky spawns (flag in Zones + species exist)
+local function luckyZones(): { string }
+	local list = {}
+	for _, z in Zones.each() do
+		if z.luckySpawns and CritterService.hasSpecies(z.name) then
+			table.insert(list, z.name)
+		end
+	end
+	return list
+end
+
+function EventService.Start()
+	BaseService.Deposited:Connect(onDeposit)
 	updateCritterOfTheHour(false)
 	scheduleNextLucky()
 	task.spawn(function()
@@ -163,7 +190,10 @@ function EventService.init()
 			end
 			if os.time() >= nextLucky then
 				scheduleNextLucky()
-				luckySpawn("Meadow", rollLuckyRarity())
+				local zones = luckyZones()
+				if #zones > 0 then
+					luckySpawn(zones[rng:NextInteger(1, #zones)], rollLuckyRarity())
+				end
 			end
 			updateBoards()
 		end

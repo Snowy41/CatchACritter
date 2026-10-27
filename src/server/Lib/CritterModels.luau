@@ -41,6 +41,51 @@ local function applyMutation(model: Model, mutation: string?)
 	end
 end
 
+-- Weather mutations (gained in a base during weather): Frozen = icy tint + crystals,
+-- Rainbow = rainbow stripes by height + rainbow sparkles.
+local function applyWeather(model: Model, weather: string?)
+	if not weather then
+		return
+	end
+	local cf, size = model:GetBoundingBox()
+	local bottom = cf.Position.Y - size.Y / 2
+	for _, p in ipairs(model:GetDescendants()) do
+		if p:IsA("BasePart") and p.Transparency < 1 and not KEEP_COLOUR[p.Name] and p.Name ~= "RarityRing" then
+			if weather == "Frozen" then
+				p.Color = p.Color:Lerp(Color3.fromRGB(170, 225, 255), 0.55)
+				p.Reflectance = 0.2
+			elseif weather == "Rainbow" then
+				local h = math.clamp((p.Position.Y - bottom) / math.max(size.Y, 0.1), 0, 1)
+				p.Color = p.Color:Lerp(Color3.fromHSV((h * 0.85) % 1, 0.75, 1), 0.6)
+			end
+		end
+	end
+	local root = model.PrimaryPart
+	if not root then
+		return
+	end
+	local e = Instance.new("ParticleEmitter")
+	e.Name = "WeatherFx"
+	e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	e.Rate = 6
+	e.Lifetime = NumberRange.new(0.8, 1.3)
+	e.Speed = NumberRange.new(0.5, 1.5)
+	e.SpreadAngle = Vector2.new(180, 180)
+	e.Size = NumberSequence.new(0.4, 0)
+	e.LightEmission = 1
+	if weather == "Frozen" then
+		e.Color = ColorSequence.new(Color3.fromRGB(200, 240, 255))
+	else
+		e.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 80)),
+			ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 230, 60)),
+			ColorSequenceKeypoint.new(0.66, Color3.fromRGB(80, 220, 120)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(110, 140, 255)),
+		})
+	end
+	e.Parent = root
+end
+
 local RARITY_INDEX: { [string]: number } = {}
 for i, r in ipairs(Config.Rarities) do
 	RARITY_INDEX[r.name] = i
@@ -133,7 +178,7 @@ local function nameplate(model: Model, entry: Config.CritterEntry, offsetY: numb
 	title.Font = Enum.Font.FredokaOne
 	title.TextScaled = true
 	title.TextColor3 = Color3.new(1, 1, 1)
-	title.Text = (entry.mutation and (entry.mutation .. " ") or "") .. def.displayName
+	title.Text = (entry.weather and (entry.weather .. " ") or "") .. (entry.mutation and (entry.mutation .. " ") or "") .. def.displayName
 	local stroke = Instance.new("UIStroke")
 	stroke.Thickness = 2
 	stroke.Parent = title
@@ -175,12 +220,14 @@ function CritterModels.build(entry: Config.CritterEntry, opts: BuildOptions?): M
 		model:ScaleTo(scale)
 	end
 	applyMutation(model, entry.mutation)
+	applyWeather(model, entry.weather)
 	if options.fx ~= false then
 		applyRarityFx(model, entry.rarity, options.beam == true, options.beamMinTier or 5)
 	end
 	model:SetAttribute("Species", entry.species)
 	model:SetAttribute("Rarity", entry.rarity)
 	model:SetAttribute("Mutation", entry.mutation)
+	model:SetAttribute("Weather", entry.weather)
 	model:SetAttribute("SizeKg", entry.sizeKg)
 	model:SetAttribute("RootHeight", (template:GetAttribute("RootHeight") or 0.2) * scale)
 	if options.label ~= false then

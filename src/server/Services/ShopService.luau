@@ -1,39 +1,64 @@
--- Upgrades bought with coins. For now: Speed (opens the zone gates: Speed 1 = Swamp, Speed 2 = Volcano).
+-- Upgrades bought with coins. Each upgrade is a small definition (cost per level, how it applies),
+-- so new upgrades (net, carry capacity, stealth, base slots) are added to UPGRADES only.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Net = require(ReplicatedStorage.Shared.Net)
 local BaseService = require(script.Parent.BaseService)
 local DataService = require(script.Parent.DataService)
 local FxService = require(script.Parent.FxService)
 
 local ShopService = {}
+ShopService.Priority = 40
 
-function ShopService.buy(player: Player, upgrade: any)
+type Upgrade = {
+	costs: { number }, -- cost of level 1, 2, ...
+	level: (data: DataService.Data) -> number,
+	apply: (player: Player, data: DataService.Data, newLevel: number) -> (),
+	message: (newLevel: number) -> string,
+}
+
+local UPGRADES: { [string]: Upgrade } = {
+	Speed = {
+		costs = Config.SpeedCosts,
+		level = function(data)
+			return data.speedLevel
+		end,
+		apply = function(player, data, newLevel)
+			data.speedLevel = newLevel
+			player:SetAttribute("SpeedLevel", newLevel)
+			BaseService.applyWalkSpeed(player)
+			FxService.toAll("SpeedUp", { userId = player.UserId, level = newLevel })
+		end,
+		message = function(newLevel)
+			return ("Speed %d unlocked!"):format(newLevel)
+		end,
+	},
+}
+
+function ShopService.buy(player: Player, name: any)
 	local data = DataService.get(player)
-	if not data or upgrade ~= "Speed" then
+	local upgrade = typeof(name) == "string" and UPGRADES[name]
+	if not data or not upgrade then
 		return { ok = false }
 	end
-	local nextLevel = data.speedLevel + 1
-	local cost = Config.SpeedCosts[nextLevel]
+	local nextLevel = upgrade.level(data) + 1
+	local cost = upgrade.costs[nextLevel]
 	if not cost then
-		return { ok = false, message = "Max speed reached!" }
+		return { ok = false, message = "Already maxed out!" }
 	end
-	if data.coins < cost then
+	if not BaseService.spendCoins(player, cost) then
 		return { ok = false, message = ("You need %d coins"):format(cost) }
 	end
-	data.coins -= cost
-	data.speedLevel = nextLevel
-	player:SetAttribute("Coins", data.coins)
-	player:SetAttribute("SpeedLevel", data.speedLevel)
-	BaseService.applyWalkSpeed(player)
-	BaseService.notify(player, ("Speed %d unlocked!"):format(nextLevel), "success")
-	FxService.toAll("SpeedUp", { userId = player.UserId, level = nextLevel })
+	upgrade.apply(player, data, nextLevel)
+	FxService.notify(player, upgrade.message(nextLevel), "success")
 	return { ok = true, level = nextLevel }
 end
 
-function ShopService.init()
+function ShopService.Start()
+	Net.func("BuyUpgrade").OnServerInvoke = ShopService.buy
 	-- proximity prompt on the shop stall counter
 	for _, stall in ipairs(CollectionService:GetTagged("ShopStall")) do
 		local counter = stall:FindFirstChild("Counter")
@@ -49,7 +74,7 @@ function ShopService.init()
 			prompt.Triggered:Connect(function(player)
 				local result = ShopService.buy(player, "Speed")
 				if not result.ok and result.message then
-					BaseService.notify(player, result.message, "warn")
+					FxService.notify(player, result.message, "warn")
 				end
 			end)
 		end

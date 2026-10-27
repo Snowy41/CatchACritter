@@ -1,13 +1,14 @@
--- Player data: load on join, autosave, save on leave and on server shutdown.
--- If DataStores are unavailable (e.g. Studio without API access) the game still runs, but nothing is saved.
+-- Player data: load on join (called by the loader before any PlayerAdded hook), autosave,
+-- save on leave and on server shutdown. If DataStores are unavailable (e.g. Studio without API
+-- access) the game still runs, but nothing is saved.
 
 local DataStoreService = game:GetService("DataStoreService")
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 
 local DataService = {}
+DataService.Priority = 0
 
 export type Data = {
 	version: number,
@@ -38,8 +39,7 @@ local function defaultData(): Data
 end
 
 local function reconcile(data: any): Data
-	local defaults = defaultData()
-	for k, v in pairs(defaults) do
+	for k, v in pairs(defaultData()) do
 		if data[k] == nil then
 			data[k] = v
 		end
@@ -49,17 +49,6 @@ local function reconcile(data: any): Data
 end
 
 local store: DataStore? = nil
-do
-	local ok, result = pcall(function()
-		return DataStoreService:GetDataStore(Config.DataStoreName)
-	end)
-	if ok then
-		store = result
-	else
-		warn("[DataService] DataStore unavailable, progress will not be saved:", result)
-	end
-end
-
 local sessions: { [Player]: { data: Data, canSave: boolean } } = {}
 
 local function key(player: Player): string
@@ -83,14 +72,10 @@ function DataService.load(player: Player): Data
 			task.wait(1.5 * attempt)
 		end
 	end
-	if not data then
-		-- never overwrite real data after a failed load: play on a temporary profile
-		data = defaultData()
-		canSave = false
-	end
-	local d = data :: Data
+	-- never overwrite real data after a failed load: play on a temporary profile instead
+	local d = data or defaultData()
 	d.sessions += 1
-	sessions[player] = { data = d, canSave = canSave }
+	sessions[player] = { data = d, canSave = canSave and data ~= nil }
 	return d
 end
 
@@ -119,7 +104,18 @@ function DataService.release(player: Player)
 	sessions[player] = nil
 end
 
-function DataService.init()
+function DataService.Init()
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(Config.DataStoreName)
+	end)
+	if ok then
+		store = result
+	else
+		warn("[DataService] DataStore unavailable, progress will not be saved:", result)
+	end
+end
+
+function DataService.Start()
 	task.spawn(function()
 		while true do
 			task.wait(Config.AutosaveInterval)

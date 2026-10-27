@@ -1,68 +1,79 @@
--- Server entry point: wires the services together and handles player join/leave.
+-- Server entry point: loads every ModuleScript in Services and runs its lifecycle.
+--
+-- Service contract (all fields optional except returning a table):
+--   Priority: number                     -- lower runs first (Init, Start, PlayerAdded); PlayerRemoving runs in reverse
+--   Init(): ()                           -- set up state, no yielding, other services may not be ready yet
+--   Start(): ()                          -- connect signals, start loops, bind remotes
+--   PlayerAdded(player, data): ()        -- after DataService loaded the player's data
+--   PlayerRemoving(player): ()           -- before the data is saved and released
+-- Services talk to each other by requiring each other and through Signals (shared/Util/Signal).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Services = script.Parent:WaitForChild("Services")
-local DataService = require(Services.DataService)
-local PlotService = require(Services.PlotService)
-local BaseService = require(Services.BaseService)
-local CritterService = require(Services.CritterService)
-local ShopService = require(Services.ShopService)
-local GuardianService = require(Services.GuardianService)
-local EventService = require(Services.EventService)
+local Net = require(ReplicatedStorage.Shared.Net)
+Net.createAll()
 
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local servicesFolder = script.Parent:WaitForChild("Services")
+local DataService = require(servicesFolder:WaitForChild("DataService")) :: any
 
-DataService.init()
-PlotService.init()
-BaseService.init()
-ShopService.init()
+type Service = {
+	Priority: number?,
+	Init: (() -> ())?,
+	Start: (() -> ())?,
+	PlayerAdded: ((Player, any) -> ())?,
+	PlayerRemoving: ((Player) -> ())?,
+}
 
-CritterService.canCatch = function(player)
-	return not BaseService.isCarrying(player)
+local services: { { name: string, mod: Service } } = {}
+for _, m in ipairs(servicesFolder:GetChildren()) do
+	if m:IsA("ModuleScript") then
+		local ok, mod = pcall(require, m)
+		if ok and typeof(mod) == "table" then
+			table.insert(services, { name = m.Name, mod = mod })
+		else
+			warn(("[Main] failed to load service %s: %s"):format(m.Name, tostring(mod)))
+		end
+	end
 end
-CritterService.onCaught = BaseService.startCarry
-CritterService.totalCatches = function(player)
-	local data = DataService.get(player)
-	return data and data.totalCatches or 0
+table.sort(services, function(a, b)
+	local pa, pb = a.mod.Priority or 100, b.mod.Priority or 100
+	if pa == pb then
+		return a.name < b.name
+	end
+	return pa < pb
+end)
+
+local function run(stage: string, fn: () -> ())
+	local ok, err = pcall(fn)
+	if not ok then
+		warn(("[Main] %s failed: %s"):format(stage, tostring(err)))
+	end
 end
-CritterService.onNestCaught = GuardianService.onNestCaught
-CritterService.init()
-GuardianService.init()
-BaseService.onDeposit = EventService.onDeposit
-EventService.init()
 
-local requestCatch = Remotes:WaitForChild("RequestCatch") :: RemoteFunction
-local submitCatch = Remotes:WaitForChild("SubmitCatch") :: RemoteFunction
-local buyUpgrade = Remotes:WaitForChild("BuyUpgrade") :: RemoteFunction
-requestCatch.OnServerInvoke = CritterService.requestCatch
-submitCatch.OnServerInvoke = CritterService.submitCatch
-buyUpgrade.OnServerInvoke = ShopService.buy
-
-local function onCharacter(player: Player, character: Model)
-	BaseService.dropCarry(player) -- a new character never carries the old critter
-	PlotService.spawnCharacter(player, character)
-	local hum = character:WaitForChild("Humanoid", 10) :: Humanoid?
-	if hum then
-		BaseService.applyWalkSpeed(player)
+for _, s in ipairs(services) do
+	if s.mod.Init then
+		run(s.name .. ".Init", s.mod.Init)
+	end
+end
+for _, s in ipairs(services) do
+	if s.mod.Start then
+		run(s.name .. ".Start", s.mod.Start)
 	end
 end
 
 local function onPlayerAdded(player: Player)
 	local data = DataService.load(player)
 	if not player.Parent then
+		DataService.release(player)
 		return -- left while loading
 	end
-	-- first session: Meadow guardians stay asleep for this player (GDD onboarding rule)
-	player:SetAttribute("Newcomer", data.sessions <= 1)
-	PlotService.assign(player)
-	BaseService.onPlayerReady(player)
-	player.CharacterAdded:Connect(function(character)
-		onCharacter(player, character)
-	end)
-	if player.Character then
-		onCharacter(player, player.Character)
+	for _, s in ipairs(services) do
+		if s.mod.PlayerAdded and s.mod ~= DataService then
+			run(s.name .. ".PlayerAdded", function()
+				(s.mod.PlayerAdded :: any)(player, data)
+			end)
+		end
 	end
 end
 
@@ -72,9 +83,15 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 
 Players.PlayerRemoving:Connect(function(player)
-	CritterService.releasePlayer(player)
-	EventService.release(player)
-	BaseService.onPlayerLeaving(player)
-	PlotService.release(player)
+	for i = #services, 1, -1 do
+		local s = services[i]
+		if s.mod.PlayerRemoving then
+			run(s.name .. ".PlayerRemoving", function()
+				(s.mod.PlayerRemoving :: any)(player)
+			end)
+		end
+	end
 	DataService.release(player)
 end)
+
+print(("[Main] %d services running"):format(#services))

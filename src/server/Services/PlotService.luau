@@ -3,51 +3,17 @@
 local CollectionService = game:GetService("CollectionService")
 
 local PlotService = {}
+PlotService.Priority = 10
 
 local plots: { Model } = {}
 local owner: { [Model]: Player } = {}
 local plotOf: { [Player]: Model } = {}
-
-function PlotService.init()
-	for _, m in ipairs(CollectionService:GetTagged("BasePlot")) do
-		table.insert(plots, m)
-	end
-	table.sort(plots, function(a, b)
-		return (a:GetAttribute("PlotId") or 0) < (b:GetAttribute("PlotId") or 0)
-	end)
-end
 
 local function setSign(plot: Model, text: string)
 	local label = plot:FindFirstChild("OwnerName", true)
 	if label and label:IsA("TextLabel") then
 		label.Text = text
 	end
-end
-
-function PlotService.assign(player: Player): Model?
-	for _, plot in ipairs(plots) do
-		if not owner[plot] then
-			owner[plot] = player
-			plotOf[player] = plot
-			plot:SetAttribute("OwnerUserId", player.UserId)
-			player:SetAttribute("PlotId", plot:GetAttribute("PlotId"))
-			setSign(plot, player.DisplayName .. "'s Base")
-			return plot
-		end
-	end
-	warn("[PlotService] no free plot for " .. player.Name)
-	return nil
-end
-
-function PlotService.release(player: Player)
-	local plot = plotOf[player]
-	if not plot then
-		return
-	end
-	owner[plot] = nil
-	plotOf[player] = nil
-	plot:SetAttribute("OwnerUserId", nil)
-	setSign(plot, "Empty Base")
 end
 
 function PlotService.getPlot(player: Player): Model?
@@ -76,17 +42,59 @@ function PlotService.slot(plot: Model, index: number): BasePart?
 	return slots and slots:FindFirstChild("Slot" .. index) :: BasePart?
 end
 
-function PlotService.spawnCharacter(player: Player, character: Model)
-	local plot = plotOf[player]
-	if not plot then
-		return
+local function assign(player: Player): Model?
+	for _, plot in ipairs(plots) do
+		if not owner[plot] then
+			owner[plot] = player
+			plotOf[player] = plot
+			plot:SetAttribute("OwnerUserId", player.UserId)
+			player:SetAttribute("PlotId", plot:GetAttribute("PlotId"))
+			setSign(plot, player.DisplayName .. "'s Base")
+			return plot
+		end
 	end
+	warn("[PlotService] no free plot for " .. player.Name)
+	return nil
+end
+
+local function spawnInPlot(player: Player, character: Model)
+	local plot = plotOf[player]
 	local hrp = character:WaitForChild("HumanoidRootPart", 10)
-	if not hrp then
+	if not plot or not hrp then
 		return
 	end
 	task.wait() -- let the default spawn finish first
 	character:PivotTo(PlotService.spawnCFrame(plot))
+end
+
+function PlotService.Init()
+	for _, m in ipairs(CollectionService:GetTagged("BasePlot")) do
+		table.insert(plots, m)
+	end
+	table.sort(plots, function(a, b)
+		return (a:GetAttribute("PlotId") or 0) < (b:GetAttribute("PlotId") or 0)
+	end)
+end
+
+function PlotService.PlayerAdded(player: Player)
+	assign(player)
+	player.CharacterAdded:Connect(function(character)
+		spawnInPlot(player, character)
+	end)
+	if player.Character then
+		task.spawn(spawnInPlot, player, player.Character)
+	end
+end
+
+function PlotService.PlayerRemoving(player: Player)
+	local plot = plotOf[player]
+	if not plot then
+		return
+	end
+	owner[plot] = nil
+	plotOf[player] = nil
+	plot:SetAttribute("OwnerUserId", nil)
+	setSign(plot, "Empty Base")
 end
 
 return PlotService

@@ -27,8 +27,16 @@ Roblox kids' game (target 100–200 CCU). Full game design document: `Catch a Cr
 - Rojo manages only code: `src/server` → ServerScriptService, `src/client` → StarterPlayerScripts, `src/shared` → ReplicatedStorage.Shared. All service nodes use `$ignoreUnknownInstances`, so map, lab, critter models and MapTemplates stay in the place file and are never touched.
 - Edit synced scripts as files in `src/` (never in Studio — Rojo overwrites them). Map, critters and other geometry are built in Studio via the MCP.
 - Naming: `*.server.luau` = Script, `*.client.luau` = LocalScript, `*.luau` = ModuleScript.
-- Editing `default.project.json` while Rojo is connected duplicates synced instances (old copies survive because of `$ignoreUnknownInstances`). After a project-file change: delete the synced scripts in Studio, have the user disconnect + reconnect Rojo, then check for duplicates.
+- Editing `default.project.json` while Rojo is connected duplicates synced instances (old copies survive because of `$ignoreUnknownInstances`). After a project-file change: delete the synced scripts in Studio, have the user disconnect + reconnect Rojo, then check for duplicates. Rojo only pushes file *changes* while connected: instances deleted in Studio are NOT recreated until the user disconnects + reconnects.
 - `tools/receive_sources.py`: one-shot localhost receiver to export script sources from Studio into `src/` (Studio POSTs with HttpEnabled toggled on/off in the same call).
+
+## Code architecture (since 2026-10-27)
+- Server: `src/server/Main.server.luau` loads every ModuleScript in `Services/` and runs the lifecycle by `Priority` (lower first): `Init()` → `Start()` → `PlayerAdded(player, data)` (after DataService.load) → `PlayerRemoving(player)` (reverse order) → DataService.release. Helpers without lifecycle in `src/server/Lib/` (CritterModels).
+- Services talk via requires + Signals (`shared/Util/Signal`): CritterService.Caught / NestCaught, BaseService.Deposited / Collected. No manual wiring in Main.
+- Client: `src/client/Main.client.luau` loads every ModuleScript in `Controllers/` and calls `Start()`. Shared client helpers in `Modules/` (UIKit, VFX).
+- Remotes: `shared/Net.luau` (declared names, created at runtime in ReplicatedStorage.Net by the server; client waits). Never define remotes in the Rojo project.
+- Data-driven: zones in `shared/Zones.luau` (unlock, wild count, rarity weights, nest, guardian, lucky spawns), species in `CritterDefs`, roles in `Roles` (Owner = user id 4664295), tuning in `Config`, icons/sounds in `Icons`/`Sounds`. Shop upgrades are entries in ShopService.UPGRADES; weathers are entries in WeatherService.WEATHERS.
+- Studio dev hooks (Workspace attributes): DevStartInLab, DevLuckySpawn, DevWeather ("Rain"/"Snowstorm"/"RainbowStorm").
 
 ## Current status
 - Roblox Studio MCP works in Claude Code (verified 2026-10-26). Place "Catch a Critter" (placeId 130712981203933).

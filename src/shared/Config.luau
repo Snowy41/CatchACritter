@@ -1,10 +1,12 @@
 --!strict
 -- Game-wide tuning values. All numbers are first drafts for balancing (see GDD "Critters").
+-- Zone-specific values (spawn weights, nests, guardians) live in Zones.luau.
 
 local Config = {}
 
 export type Rarity = {
 	name: string,
+	tier: number, -- 1 = Common ... 8 = Forgotten
 	color: Color3,
 	incomeMult: number,
 	carrySpeed: number, -- walk speed multiplier while carrying
@@ -26,25 +28,27 @@ Config.Rarities = {
 } :: { Rarity }
 
 Config.RarityByName = {} :: { [string]: Rarity }
-for _, r in ipairs(Config.Rarities) do
+for i, r in ipairs(Config.Rarities) do
+	r.tier = i
 	Config.RarityByName[r.name] = r
 end
 
--- Spawn weights per zone (only rarities listed here can spawn naturally in that zone).
-Config.ZoneRarityWeights = {
-	Meadow = { Common = 70, Uncommon = 30 },
-	Swamp = { Uncommon = 60, Rare = 40 },
-	Volcano = { Rare = 75, Epic = 25 },
-} :: { [string]: { [string]: number } }
+function Config.tier(rarityName: string?): number
+	local r = rarityName and Config.RarityByName[rarityName]
+	return r and r.tier or 1
+end
 
-export type Mutation = { name: string, chance: number, incomeMult: number, scale: number? }
+export type Mutation = { name: string, chance: number, incomeMult: number, scale: number?, weather: string? }
 
--- Natural mutations (at most one per critter). Weather mutations come later.
+-- Natural mutations (at most one per critter) and weather mutations (rolled on base critters
+-- while their owner is online during that weather; a critter can carry one of each).
 Config.Mutations = {
 	{ name = "Shiny", chance = 0.04, incomeMult = 2 },
 	{ name = "Giant", chance = 0.02, incomeMult = 3, scale = 1.6 },
 	{ name = "Tiny", chance = 0.02, incomeMult = 3, scale = 0.6 },
 	{ name = "Golden", chance = 0.005, incomeMult = 10 },
+	{ name = "Frozen", chance = 0, incomeMult = 8, weather = "Snowstorm" },
+	{ name = "Rainbow", chance = 0, incomeMult = 20, weather = "RainbowStorm" },
 } :: { Mutation }
 
 Config.MutationByName = {} :: { [string]: Mutation }
@@ -53,52 +57,8 @@ for _, m in ipairs(Config.Mutations) do
 end
 
 -- Wild critters
-Config.WildPerZone = { Meadow = 16, Swamp = 0, Volcano = 0 } :: { [string]: number }
 Config.WanderSpeed = 4
 Config.RespawnDelay = 3
-
--- Guarded nests: rarer critters sit in the nest next to the sleeping zone guardian.
-Config.NestRarityWeights = {
-	Meadow = { Uncommon = 55, Rare = 40, Epic = 5 },
-} :: { [string]: { [string]: number } }
-Config.NestCritters = 2 -- critters sitting in each nest
-Config.NestRespawn = 25 -- seconds until a caught nest critter is replaced
-
-export type GuardianDef = {
-	template: string,
-	displayName: string,
-	wakeRadius: number, -- players inside this radius around the nest fill the meter
-	wakeIdle: number, -- meter per second for a player standing/walking slowly nearby
-	wakeRunning: number, -- extra meter per second while running nearby
-	wakeOnCatch: number, -- instant meter when someone snatches a nest critter
-	wakeDecay: number, -- meter lost per second with nobody nearby
-	chaseSpeed: number,
-	returnSpeed: number,
-	chaseTime: number, -- gives up after this many seconds
-	chaseLeash: number, -- gives up when this far from its spot
-	bumpRange: number,
-	knockback: number,
-	protectNewcomers: boolean, -- stays asleep for players in their first session (GDD onboarding)
-}
-
-Config.Guardians = {
-	Meadow = {
-		template = "Bramblebear",
-		displayName = "Bramblebear",
-		wakeRadius = 30,
-		wakeIdle = 5,
-		wakeRunning = 13,
-		wakeOnCatch = 45,
-		wakeDecay = 10,
-		chaseSpeed = 13,
-		returnSpeed = 9,
-		chaseTime = 22,
-		chaseLeash = 190,
-		bumpRange = 7,
-		knockback = 26,
-		protectNewcomers = true,
-	},
-} :: { [string]: GuardianDef }
 
 -- Events
 Config.CritterOfTheHourBoost = 3 -- spawn weight multiplier for the featured species
@@ -130,7 +90,8 @@ Config.AutosaveInterval = 120
 export type CritterEntry = {
 	species: string,
 	rarity: string,
-	mutation: string?,
+	mutation: string?, -- natural mutation
+	weather: string?, -- weather mutation (Frozen, Rainbow, ...)
 	sizeKg: number,
 }
 
@@ -138,9 +99,14 @@ export type CritterEntry = {
 function Config.income(entry: CritterEntry, baseIncome: number, baseKg: number): number
 	local rarity = Config.RarityByName[entry.rarity]
 	local mutation = entry.mutation and Config.MutationByName[entry.mutation]
+	local weather = entry.weather and Config.MutationByName[entry.weather]
 	local sizeNorm = math.clamp((entry.sizeKg / baseKg - 0.7) / 0.7, 0, 1)
 	local sizeFactor = 0.9 + 0.2 * sizeNorm -- size changes income only slightly (+-10 %)
-	return baseIncome * (rarity and rarity.incomeMult or 1) * (mutation and mutation.incomeMult or 1) * sizeFactor
+	return baseIncome
+		* (rarity and rarity.incomeMult or 1)
+		* (mutation and mutation.incomeMult or 1)
+		* (weather and weather.incomeMult or 1)
+		* sizeFactor
 end
 
 function Config.walkSpeed(speedLevel: number): number

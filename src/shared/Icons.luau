@@ -9,7 +9,11 @@ return {
 	Home = "rbxassetid://84553262491602", -- Main/House/Green House 1st Outline
 	Shop = "rbxassetid://89290276494992", -- Main/Shopping Bag/Golden Shopping Bag 1st Outline
 	Shoe = "rbxassetid://83265875037151", -- Item/Shoe/Red Shoe 1st Outline
-	Upgrade = "rbxassetid://74182292542774", -- Main/Upgrade/Green Upgrade 1st Outline
+	Upgrade = "rbxassetid://99624268789837", -- Main/Upgrade/Green Upgrade 2nd Outline (has the dark outline)
+	Crown = "rbxassetid://97940470119108", -- Item/Crown/Crown 1st Outline
+	Verify = "rbxassetid://108368306451827", -- Main/Verify/Verify 1st Outline
+	Storm = "rbxassetid://78150975998348", -- Nature/Thunderstorm/Thunderstorm 1st Outline (Rain)
+	Cloud = "rbxassetid://110991643753789", -- Nature/Cloud/Cloud 1st Outline (Snowstorm)
 	Star = "rbxassetid://80149817270854", -- Main/Star/Golden Star 1st Outline
 	Warning = "rbxassetid://116773859502512", -- UI/Warning/Warning 1st Outline
 	Check = "rbxassetid://118356153069669", -- UI/Checkmark/Checkmark 1st Outline

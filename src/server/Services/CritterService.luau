@@ -1,5 +1,7 @@
--- Wild critters: spawning (species / rarity / mutation / size rolls), wandering, fleeing, and
--- server-side validation of catches. Successful catches are handed to `CritterService.onCaught`.
+-- Wild critters: spawning (species / rarity / mutation / size rolls), wandering, fleeing, guarded
+-- nest critters, special (lucky) spawns and server-side validation of catches.
+-- Zone data (counts, weights, nests) comes from shared/Zones.
+-- Signals: Caught(player, entry, nestZone?), NestCaught(player, zone)
 
 local CollectionService = game:GetService("CollectionService")
 local HttpService = game:GetService("HttpService")
@@ -7,21 +9,23 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local ServerScriptService = game:GetService("ServerScriptService")
+
 local Config = require(ReplicatedStorage.Shared.Config)
 local CritterDefs = require(ReplicatedStorage.Shared.CritterDefs)
-local CritterModels = require(script.Parent.CritterModels)
+local Net = require(ReplicatedStorage.Shared.Net)
+local Signal = require(ReplicatedStorage.Shared.Util.Signal)
+local Zones = require(ReplicatedStorage.Shared.Zones)
+local CritterModels = require(ServerScriptService.Lib.CritterModels)
+local BaseService = require(script.Parent.BaseService)
+local DataService = require(script.Parent.DataService)
 local FxService = require(script.Parent.FxService)
 
 local CritterService = {}
+CritterService.Priority = 30
 
--- set by Main: function(player, entry, nestZone) -> boolean (false = player can't take it)
-CritterService.onCaught = nil :: ((Player, Config.CritterEntry, string?) -> boolean)?
--- set by Main: called after a critter was snatched out of a guarded nest
-CritterService.onNestCaught = nil :: ((Player, string) -> ())?
--- set by Main: function(player) -> boolean (true = player may start a catch, e.g. not carrying)
-CritterService.canCatch = nil :: ((Player) -> boolean)?
--- set by Main: function(player) -> number of catches so far
-CritterService.totalCatches = nil :: ((Player) -> number)?
+CritterService.Caught = Signal.new()
+CritterService.NestCaught = Signal.new()
 
 type Wild = {
 	id: string,
@@ -83,6 +87,17 @@ local function rollMutation(): string?
 	return nil
 end
 
+local function weightsFor(zone: string, inNest: boolean?): { [string]: number }
+	local def = Zones.get(zone)
+	if not def then
+		return { Common = 1 }
+	end
+	if inNest and def.nest then
+		return def.nest.rarityWeights
+	end
+	return def.rarityWeights
+end
+
 local function rollEntry(zone: string, inNest: boolean?): Config.CritterEntry?
 	local list = speciesByZone[zone]
 	if not list or #list == 0 then
@@ -108,7 +123,7 @@ local function rollEntry(zone: string, inNest: boolean?): Config.CritterEntry?
 	local factor = 0.7 + 0.7 * (rng:NextNumber() + rng:NextNumber()) / 2
 	return {
 		species = species,
-		rarity = rollRarity(inNest and Config.NestRarityWeights[zone] or Config.ZoneRarityWeights[zone]),
+		rarity = rollRarity(weightsFor(zone, inNest)),
 		mutation = rollMutation(),
 		sizeKg = math.floor(def.baseKg * factor * 10 + 0.5) / 10,
 	}
@@ -200,7 +215,9 @@ end
 local function spawnNestCritter(zone: string, entry: Config.CritterEntry?)
 	local nest = nests[zone]
 	local e = entry or rollEntry(zone, true)
-	if not nest or not e or (nestCount[zone] or 0) >= Config.NestCritters then
+	local zoneDef = Zones.get(zone)
+	local nestDef = zoneDef and zoneDef.nest
+	if not nest or not e or not nestDef or (nestCount[zone] or 0) >= nestDef.critters then
 		return
 	end
 	local model = CritterModels.build(e)
@@ -243,13 +260,20 @@ local function despawn(id: string, respawn: boolean?)
 		return -- extra spawn: nothing to refill
 	elseif w.nest then
 		nestCount[w.nest] -= 1
-		if respawn ~= false then
-			task.delay(Config.NestRespawn, spawnNestCritter, w.nest)
+		local nestDef = (Zones.get(w.nest) :: Zones.ZoneDef).nest
+		if respawn ~= false and nestDef then
+			task.delay(nestDef.respawn, spawnNestCritter, w.nest)
 		end
 	else
 		countByZone[w.zone] -= 1
 		task.delay(Config.RespawnDelay, spawnOne, w.zone)
 	end
+end
+
+-- Zones that have species to spawn (used for lucky spawns etc.).
+function CritterService.hasSpecies(zone: string): boolean
+	local list = speciesByZone[zone]
+	return list ~= nil and #list > 0
 end
 
 -- A critter dropped by a player (guardian bump) runs straight back into its nest.
@@ -377,13 +401,14 @@ function CritterService.requestCatch(player: Player, critterId: any)
 	if not w or not hrp or w.frozenBy or sessions[player] then
 		return { ok = false }
 	end
-	if CritterService.canCatch and not CritterService.canCatch(player) then
+	if BaseService.isCarrying(player) then
 		return { ok = false, reason = "Bring your critter home first!" }
 	end
 	if (hrp.Position - w.pos).Magnitude > Config.CatchRange + 2 then
 		return { ok = false, reason = "Too far away" }
 	end
-	local guaranteed = CritterService.totalCatches ~= nil and CritterService.totalCatches(player) < Config.GuaranteedCatches
+	local data = DataService.get(player)
+	local guaranteed = data ~= nil and data.totalCatches < Config.GuaranteedCatches
 	local session: CatchSession = { token = HttpService:GenerateGUID(false), critterId = critterId, started = os.clock(), guaranteed = guaranteed }
 	sessions[player] = session
 	w.frozenBy = player
@@ -419,15 +444,16 @@ function CritterService.submitCatch(player: Player, token: any, hit: any)
 	w.frozenBy = nil
 	-- the timing bar needs at least a moment; instant answers are not accepted
 	local success = (session.guaranteed or hit == true) and (os.clock() - session.started) >= 0.25
-	if success and CritterService.onCaught then
-		success = CritterService.onCaught(player, w.entry, w.nest)
+	if success then
+		success = BaseService.startCarry(player, w.entry, w.nest)
 	end
 	if success then
 		local nestZone = w.nest
 		FxService.toAll("Catch", { pos = w.pos, rarity = w.entry.rarity })
 		despawn(w.id)
-		if nestZone and CritterService.onNestCaught then
-			CritterService.onNestCaught(player, nestZone)
+		CritterService.Caught:Fire(player, w.entry, nestZone)
+		if nestZone then
+			CritterService.NestCaught:Fire(player, nestZone)
 		end
 		return { ok = true, success = true, entry = w.entry }
 	end
@@ -445,7 +471,7 @@ function CritterService.submitCatch(player: Player, token: any, hit: any)
 	return { ok = true, success = false }
 end
 
-function CritterService.releasePlayer(player: Player)
+function CritterService.PlayerRemoving(player: Player)
 	local s = sessions[player]
 	if s and wild[s.critterId] then
 		wild[s.critterId].frozenBy = nil
@@ -453,9 +479,9 @@ function CritterService.releasePlayer(player: Player)
 	sessions[player] = nil
 end
 
---------------------------------------------------------------------------- init
+--------------------------------------------------------------------------- lifecycle
 
-function CritterService.init()
+function CritterService.Init()
 	folder = workspace:FindFirstChild("WildCritters") :: Folder
 	if not folder then
 		folder = Instance.new("Folder")
@@ -477,20 +503,29 @@ function CritterService.init()
 			table.insert(speciesByZone[zone], species)
 		end
 	end
-	for zone, n in pairs(Config.WildPerZone) do
-		for _ = 1, n do
-			spawnOne(zone)
-		end
-	end
 	for _, spot in ipairs(CollectionService:GetTagged("NestSpot")) do
 		local zone = spot:GetAttribute("Zone")
-		if spot:IsA("BasePart") and zone and Config.NestRarityWeights[zone] and speciesByZone[zone] then
+		if spot:IsA("BasePart") and zone then
 			nests[zone] = spot
-			for _ = 1, Config.NestCritters do
-				spawnNestCritter(zone)
+		end
+	end
+end
+
+function CritterService.Start()
+	for _, zone in Zones.each() do
+		if CritterService.hasSpecies(zone.name) then
+			for _ = 1, zone.wildCount do
+				spawnOne(zone.name)
+			end
+			if zone.nest and nests[zone.name] then
+				for _ = 1, zone.nest.critters do
+					spawnNestCritter(zone.name)
+				end
 			end
 		end
 	end
+	Net.func("RequestCatch").OnServerInvoke = CritterService.requestCatch
+	Net.func("SubmitCatch").OnServerInvoke = CritterService.submitCatch
 	local acc = 0
 	RunService.Heartbeat:Connect(function(dt)
 		acc += dt

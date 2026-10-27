@@ -1,36 +1,37 @@
 -- Carrying caught critters home, placing them on the plot's slots, income and the coin pad.
+-- Signals: Deposited(player, slotIndex, entry), Collected(player, amount)
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local CritterDefs = require(ReplicatedStorage.Shared.CritterDefs)
 local Icons = require(ReplicatedStorage.Shared.Icons)
-local CritterModels = require(script.Parent.CritterModels)
+local Signal = require(ReplicatedStorage.Shared.Util.Signal)
+local CritterModels = require(ServerScriptService.Lib.CritterModels)
 local DataService = require(script.Parent.DataService)
-local PlotService = require(script.Parent.PlotService)
 local FxService = require(script.Parent.FxService)
-
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local PlotService = require(script.Parent.PlotService)
 
 local BaseService = {}
+BaseService.Priority = 20
 
--- set by Main: called after a critter was placed on a slot (onboarding hooks into this)
-BaseService.onDeposit = nil :: ((Player) -> ())?
+BaseService.Deposited = Signal.new()
+BaseService.Collected = Signal.new()
 
-local carrying: { [Player]: { entry: Config.CritterEntry, model: Model, nest: string? } } = {}
+type Carry = { entry: Config.CritterEntry, model: Model, nest: string? }
+local carrying: { [Player]: Carry } = {}
 local lastFullWarning: { [Player]: number } = {}
 
-local function notify(player: Player, text: string, kind: string?)
-	(Remotes.Notify :: RemoteEvent):FireClient(player, text, kind or "info")
-end
-BaseService.notify = notify
-
-local function incomeOf(entry: Config.CritterEntry): number
+function BaseService.incomeOf(entry: Config.CritterEntry): number
 	local def = CritterDefs[entry.species]
 	return Config.income(entry, def.baseIncome, def.baseKg)
 end
+local incomeOf = BaseService.incomeOf
+
+--------------------------------------------------------------------------- speed
 
 function BaseService.walkSpeed(player: Player): number
 	local data = DataService.get(player)
@@ -48,10 +49,6 @@ function BaseService.applyWalkSpeed(player: Player)
 	if hum then
 		hum.WalkSpeed = BaseService.walkSpeed(player)
 	end
-end
-
-function BaseService.isCarrying(player: Player): boolean
-	return carrying[player] ~= nil
 end
 
 --------------------------------------------------------------------------- base displays
@@ -81,7 +78,6 @@ local function showOnSlot(plot: Model, index: number, entry: Config.CritterEntry
 	local top = slot.Position + Vector3.new(0, slot.Size.Y / 2 + (model:GetAttribute("RootHeight") or 0.2), 0)
 	local facing = (plot:FindFirstChild("Floor") :: BasePart).CFrame.LookVector -- towards the avenue
 	model:PivotTo(CFrame.lookAt(top, top + facing))
-	-- income tag under the nameplate
 	local plate = model.PrimaryPart:FindFirstChild("Nameplate") :: BillboardGui?
 	if plate then
 		local inc = Instance.new("TextLabel")
@@ -102,6 +98,16 @@ local function showOnSlot(plot: Model, index: number, entry: Config.CritterEntry
 	model.Parent = folder
 end
 
+-- Redraws one slot (e.g. after a weather mutation changed the critter).
+function BaseService.rerenderSlot(player: Player, index: number)
+	local plot = PlotService.getPlot(player)
+	local data = DataService.get(player)
+	local entry = data and data.base[tostring(index)]
+	if plot and entry then
+		showOnSlot(plot, index, entry)
+	end
+end
+
 function BaseService.renderBase(player: Player)
 	local plot = PlotService.getPlot(player)
 	local data = DataService.get(player)
@@ -114,7 +120,7 @@ function BaseService.renderBase(player: Player)
 	end
 end
 
-function BaseService.clearBase(plot: Model)
+local function clearBase(plot: Model)
 	displayFolder(plot):ClearAllChildren()
 	local pad = plot:FindFirstChild("CoinPad") :: BasePart?
 	if pad then
@@ -128,6 +134,15 @@ function BaseService.clearBase(plot: Model)
 end
 
 --------------------------------------------------------------------------- carrying
+
+function BaseService.isCarrying(player: Player): boolean
+	return carrying[player] ~= nil
+end
+
+function BaseService.carriedNest(player: Player): string?
+	local c = carrying[player]
+	return c and c.nest
+end
 
 local function attachCarry(player: Player, entry: Config.CritterEntry): Model?
 	local char = player.Character
@@ -153,7 +168,7 @@ local function attachCarry(player: Player, entry: Config.CritterEntry): Model?
 	return model
 end
 
--- Called by CritterService when a catch succeeds. Returns false if the player can't take it.
+-- Puts a freshly caught critter on the player's head. Returns false if they can't take it.
 function BaseService.startCarry(player: Player, entry: Config.CritterEntry, nestZone: string?): boolean
 	if carrying[player] then
 		return false
@@ -187,21 +202,6 @@ function BaseService.startCarry(player: Player, entry: Config.CritterEntry, nest
 	return true
 end
 
--- Removes the carried critter and returns it (used when a guardian knocks the player over).
-function BaseService.takeCarry(player: Player): (Config.CritterEntry?, string?)
-	local c = carrying[player]
-	if not c then
-		return nil, nil
-	end
-	BaseService.dropCarry(player)
-	return c.entry, c.nest
-end
-
-function BaseService.carriedNest(player: Player): string?
-	local c = carrying[player]
-	return c and c.nest
-end
-
 function BaseService.dropCarry(player: Player)
 	local c = carrying[player]
 	if not c then
@@ -214,6 +214,16 @@ function BaseService.dropCarry(player: Player)
 	player:SetAttribute("Carrying", nil)
 	player:SetAttribute("CarryingRarity", nil)
 	BaseService.applyWalkSpeed(player)
+end
+
+-- Removes the carried critter and returns it (used when a guardian knocks the player over).
+function BaseService.takeCarry(player: Player): (Config.CritterEntry?, string?)
+	local c = carrying[player]
+	if not c then
+		return nil, nil
+	end
+	BaseService.dropCarry(player)
+	return c.entry, c.nest
 end
 
 local function freeSlot(data: DataService.Data): number?
@@ -238,7 +248,7 @@ local function tryDeposit(player: Player)
 	if not index then
 		if os.clock() - (lastFullWarning[player] or 0) > 4 then
 			lastFullWarning[player] = os.clock()
-			notify(player, "Your base is full!", "warn")
+			FxService.notify(player, "Your base is full!", "warn")
 		end
 		return
 	end
@@ -249,65 +259,60 @@ local function tryDeposit(player: Player)
 	if slot then
 		FxService.toAll("Deposit", { pos = slot.Position + Vector3.new(0, slot.Size.Y / 2, 0), rarity = c.entry.rarity })
 	end
-	if BaseService.onDeposit then
-		BaseService.onDeposit(player)
-	end
-	notify(player, ("%s placed! +%s coins/s"):format(CritterDefs[c.entry.species].displayName, string.format("%.1f", incomeOf(c.entry))), "success")
+	FxService.notify(player, ("%s placed! +%s coins/s"):format(CritterDefs[c.entry.species].displayName, string.format("%.1f", incomeOf(c.entry))), "success")
+	BaseService.Deposited:Fire(player, index, c.entry)
 end
 
 --------------------------------------------------------------------------- income + coin pad
 
 -- Floating display above a coin pad: spinning gold coin + billboard with icon and amount.
 -- Lives on its own anchored part, so the pad's rotation (it is a cylinder) doesn't matter.
-local function padGui(pad: BasePart): TextLabel
-	local display = pad:FindFirstChild("CoinDisplay") :: Model?
-	if not display then
+local function padLabel(pad: BasePart): TextLabel
+	local anchor = pad:FindFirstChild("LabelAnchor") :: BasePart?
+	if not anchor then
 		local m = Instance.new("Model")
 		m.Name = "CoinDisplay"
 		local base = pad.Position + Vector3.new(0, 3.2, 0)
-		local coin = Instance.new("Part")
-		coin.Name = "Coin"
-		coin.Shape = Enum.PartType.Cylinder
-		coin.Size = Vector3.new(0.45, 2.6, 2.6)
-		coin.CFrame = CFrame.new(base) * CFrame.Angles(0, math.rad(90), 0)
-		coin.Color = Color3.fromRGB(255, 200, 50)
-		coin.Material = Enum.Material.SmoothPlastic
-		coin.Reflectance = 0.15
-		coin.Anchored = true
-		coin.CanCollide = false
-		coin.CanQuery = false
-		coin.CanTouch = false
-		coin.CastShadow = false
-		coin.Parent = m
-		local rim = coin:Clone()
-		rim.Name = "Rim"
-		rim.Size = Vector3.new(0.5, 2.0, 2.0)
-		rim.Color = Color3.fromRGB(230, 150, 20)
-		rim.Reflectance = 0
-		rim.Parent = m
-		m.PrimaryPart = coin
-		m.WorldPivot = CFrame.new(base)
+		local function coinPart(name: string, size: Vector3, color: Color3, refl: number): Part
+			local p = Instance.new("Part")
+			p.Name = name
+			p.Shape = Enum.PartType.Cylinder
+			p.Size = size
+			p.CFrame = CFrame.new(base) * CFrame.Angles(0, math.rad(90), 0)
+			p.Color = color
+			p.Material = Enum.Material.SmoothPlastic
+			p.Reflectance = refl
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Parent = m
+			return p
+		end
+		m.PrimaryPart = coinPart("Coin", Vector3.new(0.45, 2.6, 2.6), Color3.fromRGB(255, 200, 50), 0.15)
+		coinPart("Rim", Vector3.new(0.5, 2, 2), Color3.fromRGB(230, 150, 20), 0)
 		m:SetAttribute("SpinAxis", "Y")
 		m:SetAttribute("Speed", 90)
 		CollectionService:AddTag(m, "Spinner")
+		m.Parent = pad
 
-		local anchor = Instance.new("Part")
-		anchor.Name = "LabelAnchor"
-		anchor.Transparency = 1
-		anchor.Size = Vector3.new(0.2, 0.2, 0.2)
-		anchor.CFrame = CFrame.new(base + Vector3.new(0, 2.6, 0))
-		anchor.Anchored = true
-		anchor.CanCollide = false
-		anchor.CanQuery = false
-		anchor.CanTouch = false
-		anchor.Parent = pad
-
+		local a = Instance.new("Part")
+		a.Name = "LabelAnchor"
+		a.Transparency = 1
+		a.Size = Vector3.new(0.2, 0.2, 0.2)
+		a.CFrame = CFrame.new(base + Vector3.new(0, 2.6, 0))
+		a.Anchored = true
+		a.CanCollide = false
+		a.CanQuery = false
+		a.CanTouch = false
+		a.Parent = pad
 		local g = Instance.new("BillboardGui")
 		g.Name = "PadGui"
 		g.Size = UDim2.fromOffset(190, 52)
 		g.MaxDistance = 90
 		g.LightInfluence = 0
-		g.Adornee = anchor
+		g.Adornee = a
 		local icon = Instance.new("ImageLabel")
 		icon.BackgroundTransparency = 1
 		icon.Image = Icons.Coin
@@ -327,12 +332,10 @@ local function padGui(pad: BasePart): TextLabel
 		s.Color = Color3.fromRGB(20, 14, 36)
 		s.Parent = t
 		t.Parent = g
-		g.Parent = anchor
-		m.Parent = pad
-		display = m
+		g.Parent = a
+		anchor = a
 	end
-	local anchor = pad:FindFirstChild("LabelAnchor")
-	return (anchor :: Instance):FindFirstChild("PadGui"):FindFirstChild("Amount") :: TextLabel
+	return ((anchor :: BasePart):FindFirstChild("PadGui") :: BillboardGui):FindFirstChild("Amount") :: TextLabel
 end
 
 local function updatePad(player: Player)
@@ -340,7 +343,7 @@ local function updatePad(player: Player)
 	local data = DataService.get(player)
 	local pad = plot and plot:FindFirstChild("CoinPad") :: BasePart?
 	if pad and data then
-		padGui(pad).Text = tostring(math.floor(data.pendingCoins))
+		padLabel(pad).Text = tostring(math.floor(data.pendingCoins))
 	end
 end
 
@@ -360,9 +363,32 @@ local function collect(player: Player)
 	local plot = PlotService.getPlot(player)
 	local pad = plot and plot:FindFirstChild("CoinPad") :: BasePart?
 	FxService.toPlayer(player, "Collect", { pos = pad and pad.Position or Vector3.zero, amount = amount })
+	BaseService.Collected:Fire(player, amount)
 end
 
-local function hookPads()
+-- Adds coins directly (rewards, refunds). Positive amounts only.
+function BaseService.addCoins(player: Player, amount: number)
+	local data = DataService.get(player)
+	if data and amount > 0 then
+		data.coins += amount
+		player:SetAttribute("Coins", data.coins)
+	end
+end
+
+-- Spends coins if the player has enough. Returns true on success.
+function BaseService.spendCoins(player: Player, amount: number): boolean
+	local data = DataService.get(player)
+	if not data or data.coins < amount then
+		return false
+	end
+	data.coins -= amount
+	player:SetAttribute("Coins", data.coins)
+	return true
+end
+
+--------------------------------------------------------------------------- lifecycle
+
+function BaseService.Start()
 	for _, pad in ipairs(CollectionService:GetTagged("CoinPad")) do
 		if pad:IsA("BasePart") then
 			pad.CanTouch = true
@@ -380,10 +406,6 @@ local function hookPads()
 			end)
 		end
 	end
-end
-
-function BaseService.init()
-	hookPads()
 	-- deposit check (4x per second)
 	task.spawn(function()
 		while true do
@@ -404,8 +426,9 @@ function BaseService.init()
 					for _, entry in pairs(data.base) do
 						total += incomeOf(entry)
 					end
-					data.pendingCoins += total * Config.IncomeTick
-					player:SetAttribute("IncomePerSecond", total)
+					local mult = workspace:GetAttribute("IncomeMultiplier") or 1 -- e.g. Rain weather
+					data.pendingCoins += total * mult * Config.IncomeTick
+					player:SetAttribute("IncomePerSecond", total * mult)
 					updatePad(player)
 				end
 			end
@@ -413,24 +436,31 @@ function BaseService.init()
 	end)
 end
 
-function BaseService.onPlayerReady(player: Player)
-	local data = DataService.get(player)
-	if not data then
-		return
-	end
+function BaseService.PlayerAdded(player: Player, data: DataService.Data)
 	player:SetAttribute("Coins", data.coins)
 	player:SetAttribute("SpeedLevel", data.speedLevel)
 	player:SetAttribute("TotalCatches", data.totalCatches)
+	-- first session: Meadow guardians stay asleep for this player (GDD onboarding rule)
+	player:SetAttribute("Newcomer", data.sessions <= 1)
 	BaseService.renderBase(player)
 	updatePad(player)
+	local function onCharacter(character: Model)
+		BaseService.dropCarry(player) -- a new character never carries the old critter
+		character:WaitForChild("Humanoid", 10)
+		BaseService.applyWalkSpeed(player)
+	end
+	player.CharacterAdded:Connect(onCharacter)
+	if player.Character then
+		task.spawn(onCharacter, player.Character)
+	end
 end
 
-function BaseService.onPlayerLeaving(player: Player)
+function BaseService.PlayerRemoving(player: Player)
 	BaseService.dropCarry(player)
 	lastFullWarning[player] = nil
 	local plot = PlotService.getPlot(player)
 	if plot then
-		BaseService.clearBase(plot)
+		clearBase(plot)
 	end
 end
 

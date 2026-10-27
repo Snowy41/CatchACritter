@@ -10,16 +10,18 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 
-local Config = require(ReplicatedStorage.Shared.Config)
+local Net = require(ReplicatedStorage.Shared.Net)
+local Zones = require(ReplicatedStorage.Shared.Zones)
 local BaseService = require(script.Parent.BaseService)
 local CritterService = require(script.Parent.CritterService)
 local FxService = require(script.Parent.FxService)
 
 local GuardianService = {}
+GuardianService.Priority = 50
 
 type Guardian = {
 	zone: string,
-	def: Config.GuardianDef,
+	def: Zones.GuardianDef,
 	model: Model,
 	home: CFrame,
 	nest: BasePart,
@@ -218,9 +220,9 @@ local function bump(g: Guardian, player: Player)
 		if nest then
 			CritterService.returnToNest(nest, entry)
 		end
-		BaseService.notify(player, g.def.displayName .. " got you! Your critter ran away.", "warn")
+		FxService.notify(player, g.def.displayName .. " got you! Your critter ran away.", "warn")
 	else
-		BaseService.notify(player, g.def.displayName .. " bonked you!", "warn")
+		FxService.notify(player, g.def.displayName .. " bonked you!", "warn")
 	end
 end
 
@@ -259,7 +261,7 @@ local function update(g: Guardian, dt: number)
 				g.target = target
 				setState(g, "Chasing")
 				FxService.toPlayer(target, "Chased", { on = true, name = def.displayName })
-				BaseService.notify(target, def.displayName .. " is awake - RUN home!", "warn")
+				FxService.notify(target, def.displayName .. " is awake - RUN home!", "warn")
 			else
 				g.meter = 60
 				setState(g, "Sleeping")
@@ -295,8 +297,8 @@ local function update(g: Guardian, dt: number)
 	refreshGui(g)
 end
 
--- Called by CritterService when someone snatches a critter out of a nest.
-function GuardianService.onNestCaught(player: Player, zone: string)
+-- Someone snatched a critter out of a nest (CritterService.NestCaught).
+local function onNestCaught(player: Player, zone: string)
 	for _, g in ipairs(guardians) do
 		if g.zone == zone and not protected(g, player) then
 			g.culprit = player
@@ -307,8 +309,12 @@ function GuardianService.onNestCaught(player: Player, zone: string)
 	end
 end
 
-function GuardianService.init()
-	knockbackRemote = FxService.remote("Knockback")
+function GuardianService.Init()
+	knockbackRemote = Net.event("Knockback")
+end
+
+function GuardianService.Start()
+	CritterService.NestCaught:Connect(onNestCaught)
 
 	for _, z in ipairs(CollectionService:GetTagged("SafeZone")) do
 		if z:IsA("BasePart") then
@@ -327,7 +333,8 @@ function GuardianService.init()
 	folder.Parent = workspace
 	for _, spot in ipairs(CollectionService:GetTagged("GuardianSpot")) do
 		local zone = spot:GetAttribute("Zone")
-		local def = zone and Config.Guardians[zone]
+		local zoneDef = zone and Zones.get(zone)
+		local def = zoneDef and zoneDef.guardian
 		local nest = zone and nestByZone[zone]
 		local template = def and templates:FindFirstChild(def.template) :: Model?
 		if spot:IsA("BasePart") and def and nest and template then

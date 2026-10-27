@@ -1,36 +1,35 @@
 -- Tells clients about moments worth an effect (catch bursts, deposits, coins, guardian events,
--- announcements). Effects themselves are drawn on the client (src/client/Effects.client.luau).
--- Remotes live in ReplicatedStorage.RuntimeRemotes (created at runtime, not synced by Rojo).
+-- announcements). Effects themselves are drawn on the client (Controllers/Effects).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Net = require(ReplicatedStorage.Shared.Net)
+
 local FxService = {}
+FxService.Priority = 1
 
-local folder = ReplicatedStorage:FindFirstChild("RuntimeRemotes") or Instance.new("Folder")
-folder.Name = "RuntimeRemotes"
-folder.Parent = ReplicatedStorage
+local fx: RemoteEvent
+local notify: RemoteEvent
 
-function FxService.remote(name: string): RemoteEvent
-	local r = folder:FindFirstChild(name) :: RemoteEvent?
-	if not r then
-		r = Instance.new("RemoteEvent")
-		r.Name = name
-		r.Parent = folder
-	end
-	return r :: RemoteEvent
+function FxService.Init()
+	fx = Net.event("Fx")
+	notify = Net.event("Notify")
 end
-
-local fx = FxService.remote("Fx")
 
 -- Effect for one player only (e.g. coins flying into their HUD).
 function FxService.toPlayer(player: Player, kind: string, data: { [string]: any })
 	fx:FireClient(player, kind, data)
 end
 
--- Effect everyone nearby should see (e.g. a catch burst).
+-- Effect everyone should see (e.g. a catch burst).
 function FxService.toAll(kind: string, data: { [string]: any })
 	fx:FireAllClients(kind, data)
+end
+
+-- Toast message on one player's HUD. kind: "info" | "success" | "warn" | "coins"
+function FxService.notify(player: Player, text: string, kind: string?)
+	notify:FireClient(player, text, kind or "info")
 end
 
 -- Server-wide banner, e.g. "A RARE Clover Bun appeared in the Meadow!"
