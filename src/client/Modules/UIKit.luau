@@ -467,7 +467,7 @@ local RAINBOW = ColorSequence.new({
 UIKit.Rainbow = RAINBOW
 
 local rotating: { [UIGradient]: number } = {}
-local bobbing: { [GuiObject]: { base: UDim2, amp: number, speed: number, phase: number } } = {}
+local bobbing: { [GuiObject]: { base: number, amp: number, speed: number, phase: number } } = {}
 RunService.RenderStepped:Connect(function(dt)
 	local t = os.clock()
 	for g, speed in pairs(rotating) do
@@ -479,7 +479,7 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 	for obj, b in pairs(bobbing) do
 		if obj.Parent then
-			obj.Position = b.base + UDim2.fromOffset(0, math.sin(t * b.speed + b.phase) * b.amp)
+			obj.Rotation = b.base + math.sin(t * b.speed + b.phase) * b.amp
 		else
 			bobbing[obj] = nil
 		end
@@ -528,9 +528,10 @@ function UIKit.glow(parent: Instance, props: { [string]: any }): ImageLabel
 	return img
 end
 
--- Gentle idle bob (icons, rewards).
+-- Gentle idle sway (icons, rewards). Rotation, not position: GUI positions snap to whole pixels,
+-- so a small up/down bob looks jittery, while rotation is drawn smoothly. amp is in degrees.
 function UIKit.bob(obj: GuiObject, amp: number?, speed: number?)
-	bobbing[obj] = { base = obj.Position, amp = amp or 3, speed = speed or 2.2, phase = math.random() * 6 }
+	bobbing[obj] = { base = obj.Rotation, amp = amp or 4, speed = speed or 2.2, phase = math.random() * 6 }
 end
 
 -- Sparkles that pop up across a frame and fade, while it is visible. Stops when destroyed.

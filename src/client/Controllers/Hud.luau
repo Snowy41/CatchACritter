@@ -69,7 +69,7 @@ function Controller.Start()
 	UIKit.shineSweep(coinPill.body, 16, 3)
 	if coinPill.icon then
 		UIKit.glow(coinPill.holder, { size = UDim2.fromOffset(120, 120), position = UDim2.fromOffset(18, 30), color = Color3.fromRGB(255, 220, 90), transparency = 0.35, z = 1 })
-		UIKit.bob(coinPill.icon, 2, 1.8)
+		UIKit.bob(coinPill.icon, 6, 1.6)
 	end
 	UIKit.sparkles(coinPill.body, { rate = 0.8, z = 8, minSize = 10, maxSize = 18 })
 	coinText.Size = UDim2.new(1, -150, 0.64, 0)
