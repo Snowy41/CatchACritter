@@ -1,0 +1,4 @@
+# Toolchain for this project (installed with Aftman).
+[tools]
+rojo = "rojo-rbx/rojo@7.7.0-rc.1"
+stylua = "JohnnyMorganz/StyLua@2.5.2"

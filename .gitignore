@@ -1,0 +1,18 @@
+# Roblox place files (the place lives in Roblox cloud; scripts are synced from src/ by Rojo)
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+sourcemap.json
+
+# Blender backups
+*.blend1
+
+# Python
+__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
