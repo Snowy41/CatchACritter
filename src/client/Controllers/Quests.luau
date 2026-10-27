@@ -121,7 +121,7 @@ function Controller.Start()
 				name = "Reward", size = UDim2.fromOffset(132, 44), position = right, anchor = Vector2.new(0.5, 0.5),
 				icon = Icons.Coin, iconScale = 1.35, radius = 15, top = Color3.fromRGB(255, 214, 70), bottom = Color3.fromRGB(225, 130, 15),
 			})
-			UIKit.text(reward.body, { text = tostring(e.reward), bold = true, size = UDim2.new(1, -46, 0.6, 0), position = UDim2.new(0, 36, 0.5, 0), anchor = Vector2.new(0, 0.5), alignX = Enum.TextXAlignment.Left })
+			UIKit.valueText(reward.body, { text = tostring(e.reward), inset = 36, height = 0.6 })
 		end
 	end
 

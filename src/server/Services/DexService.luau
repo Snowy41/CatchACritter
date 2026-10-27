@@ -60,7 +60,7 @@ function DexService.register(player: Player, entry: Config.CritterEntry): (boole
 	return isNew, Dex.count(data.critterdex), Dex.TotalEntries
 end
 
-function DexService.grantTitle(player: Player, id: string, equip: boolean?)
+function DexService.grantTitle(player: Player, id: string, equip: boolean?, silent: boolean?)
 	local data = DataService.get(player)
 	if not data or not Titles[id] or data.titles[id] then
 		return
@@ -69,7 +69,9 @@ function DexService.grantTitle(player: Player, id: string, equip: boolean?)
 	if equip or not data.title then
 		data.title = id
 	end
-	FxService.notify(player, ("New title: %s"):format(Titles[id].text), "success")
+	if not silent then
+		FxService.notify(player, ("New title: %s"):format(Titles[id].text), "success")
+	end
 	push(player)
 end
 

@@ -117,6 +117,16 @@ function UIKit.text(parent: Instance, props: { [string]: any }): TextLabel
 	return t
 end
 
+-- Value text (prices, rewards) centred in the part of a pill that the overlapping icon leaves free.
+function UIKit.valueText(body: GuiObject, props: { [string]: any }): TextLabel
+	local inset = props.inset or 34 -- width covered by the pill's icon
+	return UIKit.text(body, {
+		text = props.text or "", bold = true, size = UDim2.new(1, -inset - 6, props.height or 0.62, 0),
+		position = UDim2.new(0, inset, 0.5, 0), anchor = Vector2.new(0, 0.5), alignX = Enum.TextXAlignment.Center,
+		color = props.color, strokeThickness = props.strokeThickness,
+	})
+end
+
 function UIKit.icon(parent: Instance, image: string, props: { [string]: any }): ImageLabel
 	local i = Instance.new("ImageLabel")
 	i.BackgroundTransparency = 1

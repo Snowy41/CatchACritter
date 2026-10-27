@@ -67,6 +67,10 @@ function Controller.Start()
 	})
 	local coinText = pillText(coinPill.body, "0", 58, 0.64, true)
 	UIKit.shineSweep(coinPill.body, 16, 3)
+	if coinPill.icon then
+		UIKit.glow(coinPill.holder, { size = UDim2.fromOffset(120, 120), position = UDim2.fromOffset(18, 30), color = Color3.fromRGB(255, 220, 90), transparency = 0.35, z = 1 })
+		UIKit.bob(coinPill.icon, 2, 1.8)
+	end
 	UIKit.sparkles(coinPill.body, { rate = 0.8, z = 8, minSize = 10, maxSize = 18 })
 	coinText.Size = UDim2.new(1, -150, 0.64, 0)
 	local incomeText = UIKit.text(coinPill.body, {
@@ -75,7 +79,7 @@ function Controller.Start()
 	})
 
 	local speedPill = UIKit.pill(topLeft, {
-		name = "Speed", size = UDim2.fromOffset(196, 50), position = UDim2.fromOffset(0, 78), icon = Icons.Speed, iconScale = 1.35,
+		name = "Speed", size = UDim2.fromOffset(250, 50), position = UDim2.fromOffset(0, 78), icon = Icons.Speed, iconScale = 1.35,
 		top = UIKit.Themes.Blue[1], bottom = UIKit.Themes.Blue[2], pattern = "Stars", patternTransparency = 0.8, patternTile = 36,
 	})
 	local speedText = pillText(speedPill.body, "SPEED 0", 52, 0.6, true)
@@ -160,6 +164,12 @@ function Controller.Start()
 		end)
 	end
 	Notify.OnClientEvent:Connect(toast)
+	-- server-wide banners (Effects) show at the top: slide the toasts below them meanwhile
+	local function placeToasts()
+		local active = player.PlayerGui:GetAttribute("AnnounceActive") == true
+		UIKit.tween(toastHolder, 0.25, { Position = UDim2.fromOffset(0, active and 170 or 86) })
+	end
+	player.PlayerGui:GetAttributeChangedSignal("AnnounceActive"):Connect(placeToasts)
 
 	--------------------------------------------------------------------------- right: speed shop
 
@@ -184,7 +194,7 @@ function Controller.Start()
 		top = UIKit.Themes.Gold[1], bottom = UIKit.Themes.Gold[2],
 	})
 	price.holder.ZIndex = 6
-	local priceText = pillText(price.body, "25", 34, 0.64, true)
+	local priceText = UIKit.valueText(price.body, { text = "25", inset = 30, height = 0.64 })
 
 	local shopBurst = UIKit.sunburst(shop.root, { size = UDim2.fromOffset(230, 230), color = Color3.fromRGB(255, 250, 170), transparency = 0.25, z = 0 })
 	shopBurst.Visible = false
@@ -259,7 +269,7 @@ function Controller.Start()
 			local ui = WEATHER_UI[weather]
 			if ui then
 				weatherPill = UIKit.pill(topLeft, {
-					name = "Weather", size = UDim2.fromOffset(196, 46), position = UDim2.fromOffset(0, 136),
+					name = "Weather", size = UDim2.fromOffset(250, 46), position = UDim2.fromOffset(0, 136),
 					icon = ui.icon, iconScale = 1.4, top = ui.top, bottom = ui.bottom, pattern = "Stars", patternTransparency = 0.8, patternTile = 34,
 				})
 				weatherText = pillText(weatherPill.body, ui.name, 52, 0.58, true)
@@ -385,6 +395,43 @@ function Controller.Start()
 	keyHint.holder.ZIndex = 9
 	keyHint.holder.Visible = UserInputService.KeyboardEnabled
 	catch.root.Visible = false
+	local catchGlow = UIKit.glow(catch.root, { size = UDim2.fromScale(2, 2), color = Color3.fromRGB(150, 255, 120), transparency = 0.45, z = 0 })
+	local catchBurst = UIKit.sunburst(catch.root, { size = UDim2.fromScale(2.6, 2.6), color = Color3.fromRGB(255, 240, 160), transparency = 0.3, z = 0, speed = 40 })
+	catchBurst.Visible = false
+	local catchStroke: UIStroke? = nil
+	local catchPulse = Instance.new("UIScale")
+	catchPulse.Name = "CatchPulse"
+	local catchWrap = Instance.new("Frame") -- pulse wrapper so it doesn't fight the hover scale
+	catchWrap.Name = "CatchWrap"
+	catchWrap.BackgroundTransparency = 1
+	catchWrap.Size = catch.root.Size
+	catchWrap.Position = catch.root.Position
+	catchWrap.AnchorPoint = catch.root.AnchorPoint
+	catchWrap.Parent = bottom
+	catch.root.Parent = catchWrap
+	catch.root.Position = UDim2.fromScale(0.5, 0.5)
+	catch.root.AnchorPoint = Vector2.new(0.5, 0.5)
+	catchPulse.Parent = catchWrap
+	local rareTarget = false
+	local function setRareTarget(on: boolean, color: Color3?)
+		catchBurst.Visible = on
+		if color then
+			catchBurst.ImageColor3 = UIKit.lighter(color, 0.45)
+			catchGlow.ImageColor3 = UIKit.lighter(color, 0.3)
+		else
+			catchGlow.ImageColor3 = Color3.fromRGB(150, 255, 120)
+		end
+		if on and not catchStroke then
+			catchStroke = UIKit.rainbowStroke(catch.face, { thickness = 5 })
+		elseif not on and catchStroke then
+			catchStroke:Destroy()
+			catchStroke = nil
+			local own = catch.face:FindFirstChildOfClass("UIStroke")
+			if own then
+				own.Enabled = true
+			end
+		end
+	end
 
 	local targetChip = UIKit.pill(bottom, { name = "Target", size = UDim2.fromOffset(260, 38), position = UDim2.new(0.5, 0, 1, -166), anchor = Vector2.new(0.5, 1), radius = 14 })
 	local targetText = UIKit.text(targetChip.body, { text = "", size = UDim2.new(1, -24, 0.62, 0), position = UDim2.new(0.5, 0, 0.5, 0), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2.5 })
@@ -537,6 +584,7 @@ function Controller.Start()
 			UIKit.pop(catch.face, 0.2)
 		end
 		catch.root.Visible = shown
+		catchPulse.Scale = shown and (1 + math.abs(math.sin(os.clock() * 3.5)) * (active and 0.08 or 0.04)) or 1
 		targetChip.holder.Visible = shown and not active
 		highlight.Adornee = target
 		if target then
@@ -547,6 +595,14 @@ function Controller.Start()
 			local r = Config.RarityByName[rarity]
 			targetText.TextColor3 = r and UIKit.lighter(r.color, 0.25) or Color3.new(1, 1, 1)
 			highlight.OutlineColor = r and UIKit.lighter(r.color, 0.4) or Color3.new(1, 1, 1)
+			local isRare = r ~= nil and r.tier >= 3
+			if isRare ~= rareTarget then
+				rareTarget = isRare
+				setRareTarget(isRare, r and r.color)
+			end
+		elseif rareTarget then
+			rareTarget = false
+			setRareTarget(false)
 		end
 	end)
 end

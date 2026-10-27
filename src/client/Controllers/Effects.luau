@@ -313,7 +313,27 @@ function Controller.Start()
 
 	--------------------------------------------------------------------------- announcement banner
 
+	-- Banners queue up (one at a time) so they never stack; PlayerGui attribute AnnounceActive
+	-- lets the HUD move its toasts out of the way while one is showing.
+	local announceQueue: { { [string]: any } } = {}
+	local announcing = false
+	local showAnnouncement: (d: { [string]: any }) -> ()
 	local function announce(d: { [string]: any })
+		table.insert(announceQueue, d)
+		if announcing then
+			return
+		end
+		announcing = true
+		player.PlayerGui:SetAttribute("AnnounceActive", true)
+		task.spawn(function()
+			while #announceQueue > 0 do
+				showAnnouncement(table.remove(announceQueue, 1))
+			end
+			announcing = false
+			player.PlayerGui:SetAttribute("AnnounceActive", false)
+		end)
+	end
+	function showAnnouncement(d: { [string]: any })
 		local color = d.rarity and rarityColor(d.rarity) or Color3.fromRGB(255, 196, 40)
 		local holder = Instance.new("Frame")
 		holder.BackgroundTransparency = 1
@@ -330,11 +350,10 @@ function Controller.Start()
 		UIKit.shineSweep(pill.body, 20, 1.2)
 		UIKit.tween(holder, 0.5, { Position = UDim2.new(0.5, 0, 0, 30) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 		VFX.sound(Sounds.Fanfare, 0.55)
-		task.delay(4.5, function()
-			UIKit.tween(holder, 0.4, { Position = UDim2.new(0.5, 0, 0, -110) }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-			task.wait(0.45)
-			holder:Destroy()
-		end)
+		task.wait(3.6)
+		UIKit.tween(holder, 0.4, { Position = UDim2.new(0.5, 0, 0, -110) }, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+		task.wait(0.45)
+		holder:Destroy()
 	end
 
 	--------------------------------------------------------------------------- small HUD moments

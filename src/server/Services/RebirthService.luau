@@ -40,7 +40,7 @@ local function rebirth(player: Player)
 	player:SetAttribute("Rebirth", nextLevel)
 	BaseService.applyWalkSpeed(player)
 	BaseService.renderBase(player) -- income labels include the new multiplier
-	DexService.grantTitle(player, "Reborn" .. nextLevel, true)
+	DexService.grantTitle(player, "Reborn" .. nextLevel, true, true) -- the rebirth banner is the notification
 	FxService.toAll("Rebirth", { userId = player.UserId, level = nextLevel })
 	FxService.announce(("%s reached REBIRTH %d!"):format(player.DisplayName, nextLevel), "Epic")
 	return { ok = true, level = nextLevel }
