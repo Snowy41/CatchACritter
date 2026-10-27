@@ -46,6 +46,7 @@ function Controller.Start()
 		g.AlwaysOnTop = true
 		g.LightInfluence = 0
 		g.Adornee = model.PrimaryPart
+		g:SetAttribute("RefDistance", 30) -- guide sign: shrinks with distance, but stays readable longer
 		local icon = Instance.new("ImageLabel")
 		icon.Name = "Icon"
 		icon.BackgroundTransparency = 1
