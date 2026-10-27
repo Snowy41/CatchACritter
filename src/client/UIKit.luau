@@ -1,7 +1,7 @@
 -- Small UI kit for the HUD: consistent chunky "simulator" look.
---  * 3D buttons: coloured face with gradient + shine on a darker lip, press-down animation
---  * pills: dark rounded panels with an icon overlapping the left edge
---  * text: bold game font with a thick dark outline
+--  * pills: dark gradient panel + soft drop shadow, icon overlapping the left edge
+--  * 3D buttons: gradient face on a darker lip, shine sweep, hover grow, press sink
+--  * text: bold game font with a thick dark outline, vertically centred helpers
 
 local TweenService = game:GetService("TweenService")
 
@@ -10,13 +10,13 @@ local UIKit = {}
 UIKit.Font = Enum.Font.FredokaOne
 UIKit.FontBold = Enum.Font.LuckiestGuy
 UIKit.Ink = Color3.fromRGB(20, 14, 36) -- outline colour (matches the icon pack's dark outline)
-UIKit.PanelTop = Color3.fromRGB(58, 46, 98)
-UIKit.PanelBottom = Color3.fromRGB(34, 26, 62)
+UIKit.PanelTop = Color3.fromRGB(64, 50, 110)
+UIKit.PanelBottom = Color3.fromRGB(32, 24, 60)
 
 UIKit.Colors = {
-	Green = Color3.fromRGB(96, 214, 72),
-	Blue = Color3.fromRGB(70, 160, 255),
-	Gold = Color3.fromRGB(255, 196, 40),
+	Green = Color3.fromRGB(92, 214, 70),
+	Blue = Color3.fromRGB(66, 156, 255),
+	Gold = Color3.fromRGB(255, 192, 36),
 	Red = Color3.fromRGB(255, 84, 84),
 	Purple = Color3.fromRGB(170, 96, 255),
 }
@@ -29,6 +29,13 @@ local function lighter(c: Color3, f: number): Color3
 end
 UIKit.darker = darker
 UIKit.lighter = lighter
+
+local function tween(obj: Instance, t: number, props: { [string]: any }, style: Enum.EasingStyle?, dir: Enum.EasingDirection?)
+	local tw = TweenService:Create(obj, TweenInfo.new(t, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out), props)
+	tw:Play()
+	return tw
+end
+UIKit.tween = tween
 
 function UIKit.corner(parent: Instance, radius: number?)
 	local c = Instance.new("UICorner")
@@ -55,7 +62,8 @@ function UIKit.gradient(parent: Instance, top: Color3, bottom: Color3)
 	return g
 end
 
--- Text with a thick outline. `bold` uses the chunky display font (numbers, buttons, titles).
+-- Text with a thick outline. `bold` = chunky display font (numbers, buttons, titles).
+-- Default placement: fills the parent; pass position/size/anchor to override.
 function UIKit.text(parent: Instance, props: { [string]: any }): TextLabel
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency = 1
@@ -67,7 +75,8 @@ function UIKit.text(parent: Instance, props: { [string]: any }): TextLabel
 	t.Position = props.position or UDim2.new()
 	t.AnchorPoint = props.anchor or Vector2.zero
 	t.TextXAlignment = props.alignX or Enum.TextXAlignment.Center
-	t.ZIndex = props.z or 3
+	t.TextYAlignment = Enum.TextYAlignment.Center
+	t.ZIndex = props.z or 4
 	UIKit.stroke(t, props.strokeThickness or 3, props.strokeColor or UIKit.Ink, Enum.ApplyStrokeMode.Contextual)
 	t.Parent = parent
 	return t
@@ -82,65 +91,139 @@ function UIKit.icon(parent: Instance, image: string, props: { [string]: any }): 
 	i.Position = props.position or UDim2.new()
 	i.AnchorPoint = props.anchor or Vector2.zero
 	i.Rotation = props.rotation or 0
-	i.ZIndex = props.z or 4
+	i.ZIndex = props.z or 5
 	i.Parent = parent
 	return i
 end
 
--- Dark rounded panel (pill) with an optional icon overlapping its left edge.
+-- Diagonal light sweep across a rounded face, repeating every `interval` seconds.
+function UIKit.shineSweep(face: GuiObject, radius: number?, interval: number?)
+	local overlay = Instance.new("Frame")
+	overlay.Name = "Sweep"
+	overlay.BackgroundColor3 = Color3.new(1, 1, 1)
+	overlay.BorderSizePixel = 0
+	overlay.Size = UDim2.fromScale(1, 1)
+	overlay.ZIndex = face.ZIndex + 1
+	overlay.Active = false
+	UIKit.corner(overlay, radius)
+	local g = Instance.new("UIGradient")
+	g.Rotation = 20
+	g.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.42, 1),
+		NumberSequenceKeypoint.new(0.5, 0.45),
+		NumberSequenceKeypoint.new(0.58, 1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	g.Offset = Vector2.new(-1, 0)
+	g.Parent = overlay
+	overlay.Parent = face
+	task.spawn(function()
+		task.wait(math.random() * (interval or 3.5))
+		while overlay.Parent do
+			g.Offset = Vector2.new(-1, 0)
+			local tw = tween(g, 0.7, { Offset = Vector2.new(1, 0) }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+			tw.Completed:Wait()
+			task.wait(interval or 3.5)
+		end
+	end)
+	return overlay
+end
+
+-- Rounded panel with drop shadow and an optional icon overlapping the left edge.
+-- Returns { holder = Frame (position/visibility), body = Frame (put content here), icon = ImageLabel? }
 function UIKit.pill(parent: Instance, props: { [string]: any })
-	local frame = Instance.new("Frame")
-	frame.Name = props.name or "Pill"
-	frame.Size = props.size
-	frame.Position = props.position or UDim2.new()
-	frame.AnchorPoint = props.anchor or Vector2.zero
-	frame.BackgroundColor3 = Color3.new(1, 1, 1)
-	UIKit.corner(frame, props.radius or 14)
-	UIKit.gradient(frame, props.top or UIKit.PanelTop, props.bottom or UIKit.PanelBottom)
-	UIKit.stroke(frame, 3)
-	-- thin inner highlight along the top edge
+	local radius = props.radius or 16
+	local holder = Instance.new("Frame")
+	holder.Name = props.name or "Pill"
+	holder.BackgroundTransparency = 1
+	holder.Size = props.size
+	holder.Position = props.position or UDim2.new()
+	holder.AnchorPoint = props.anchor or Vector2.zero
+
+	local shadow = Instance.new("Frame")
+	shadow.Name = "Shadow"
+	shadow.BackgroundColor3 = Color3.new(0, 0, 0)
+	shadow.BackgroundTransparency = 0.7
+	shadow.BorderSizePixel = 0
+	shadow.Size = UDim2.fromScale(1, 1)
+	shadow.Position = UDim2.fromOffset(0, 5)
+	shadow.ZIndex = 1
+	UIKit.corner(shadow, radius)
+	shadow.Parent = holder
+
+	local body = Instance.new("Frame")
+	body.Name = "Body"
+	body.BackgroundColor3 = Color3.new(1, 1, 1)
+	body.Size = UDim2.fromScale(1, 1)
+	body.ZIndex = 2
+	UIKit.corner(body, radius)
+	UIKit.gradient(body, props.top or UIKit.PanelTop, props.bottom or UIKit.PanelBottom)
+	UIKit.stroke(body, 3)
+	body.Parent = holder
+
 	local hl = Instance.new("Frame")
 	hl.Name = "Highlight"
 	hl.BackgroundColor3 = Color3.new(1, 1, 1)
-	hl.BackgroundTransparency = 0.85
+	hl.BackgroundTransparency = 0.82
 	hl.BorderSizePixel = 0
-	hl.Size = UDim2.new(1, -16, 0, 3)
-	hl.Position = UDim2.fromOffset(8, 4)
-	hl.ZIndex = 2
+	hl.Size = UDim2.new(1, -2 * radius, 0, 3)
+	hl.Position = UDim2.new(0, radius, 0, 4)
+	hl.ZIndex = 3
 	UIKit.corner(hl, 2)
-	hl.Parent = frame
+	hl.Parent = body
+
 	local icon
 	if props.icon then
-		local h = frame.Size.Y.Offset
-		icon = UIKit.icon(frame, props.icon, {
-			size = UDim2.fromOffset(h * 1.35, h * 1.35),
-			position = UDim2.new(0, -h * 0.45, 0.5, 0),
+		local h = holder.Size.Y.Offset
+		local s = h * (props.iconScale or 1.3)
+		icon = UIKit.icon(holder, props.icon, {
+			size = UDim2.fromOffset(s, s),
+			position = UDim2.new(0, -s * 0.38, 0.5, 0),
 			anchor = Vector2.new(0, 0.5),
-			z = 5,
+			z = 6,
 		})
 	end
-	frame.Parent = parent
-	return frame, icon
+	holder.Parent = parent
+	return { holder = holder, body = body, icon = icon }
 end
 
--- 3D button: darker "lip" underneath, gradient face, shine; sinks when pressed.
--- Returns the clickable face (TextButton) and the root frame.
+-- 3D button: darker lip underneath, gradient face, static shine + periodic sweep,
+-- grows on hover, sinks + shrinks on press.
+-- Returns { root = Frame, face = TextButton }
 function UIKit.button(parent: Instance, props: { [string]: any })
 	local color: Color3 = props.color or UIKit.Colors.Green
 	local depth = props.depth or 6
+	local radius = props.radius
+
 	local root = Instance.new("Frame")
 	root.Name = props.name or "Button"
 	root.BackgroundTransparency = 1
 	root.Size = props.size
 	root.Position = props.position or UDim2.new()
 	root.AnchorPoint = props.anchor or Vector2.new(0.5, 0.5)
+	local scale = Instance.new("UIScale")
+	scale.Name = "HoverScale"
+	scale.Parent = root
+
+	local shadow = Instance.new("Frame")
+	shadow.Name = "Shadow"
+	shadow.BackgroundColor3 = Color3.new(0, 0, 0)
+	shadow.BackgroundTransparency = 0.72
+	shadow.BorderSizePixel = 0
+	shadow.Size = UDim2.fromScale(1, 1)
+	shadow.Position = UDim2.fromOffset(0, depth + 5)
+	shadow.ZIndex = 1
+	UIKit.corner(shadow, radius)
+	shadow.Parent = root
 
 	local lip = Instance.new("Frame")
 	lip.Name = "Lip"
-	lip.Size = UDim2.new(1, 0, 1, 0)
+	lip.Size = UDim2.fromScale(1, 1)
 	lip.Position = UDim2.fromOffset(0, depth)
 	lip.BackgroundColor3 = darker(color, 0.55)
-	UIKit.corner(lip, props.radius)
+	lip.ZIndex = 2
+	UIKit.corner(lip, radius)
 	UIKit.stroke(lip, 3)
 	lip.Parent = root
 
@@ -148,63 +231,88 @@ function UIKit.button(parent: Instance, props: { [string]: any })
 	face.Name = "Face"
 	face.Text = ""
 	face.AutoButtonColor = false
-	face.Size = UDim2.new(1, 0, 1, 0)
+	face.Size = UDim2.fromScale(1, 1)
 	face.BackgroundColor3 = Color3.new(1, 1, 1)
-	UIKit.corner(face, props.radius)
-	UIKit.gradient(face, lighter(color, 0.25), color)
+	face.ZIndex = 3
+	UIKit.corner(face, radius)
+	UIKit.gradient(face, lighter(color, 0.3), color)
 	UIKit.stroke(face, 3)
-	face.ZIndex = 2
 	face.Parent = root
 
-	local shine = Instance.new("Frame")
-	shine.Name = "Shine"
-	shine.BackgroundColor3 = Color3.new(1, 1, 1)
-	shine.BackgroundTransparency = 0.7
-	shine.BorderSizePixel = 0
-	shine.Size = UDim2.new(1, -14, 0.38, 0)
-	shine.Position = UDim2.new(0, 7, 0, 5)
-	shine.ZIndex = 2
-	UIKit.corner(shine, props.radius and math.max(props.radius - 4, 4) or nil)
-	local sg = Instance.new("UIGradient")
-	sg.Rotation = 90
-	sg.Transparency = NumberSequence.new(0.2, 1)
-	sg.Parent = shine
-	shine.Parent = face
+	-- static gloss on the upper part of the face
+	local gloss = Instance.new("Frame")
+	gloss.Name = "Gloss"
+	gloss.BackgroundColor3 = Color3.new(1, 1, 1)
+	gloss.BorderSizePixel = 0
+	gloss.Size = UDim2.new(1, -12, 0.42, 0)
+	gloss.Position = UDim2.new(0, 6, 0, 5)
+	gloss.ZIndex = 3
+	UIKit.corner(gloss, radius and math.max(radius - 5, 4) or nil)
+	local gg = Instance.new("UIGradient")
+	gg.Rotation = 90
+	gg.Transparency = NumberSequence.new(0.55, 1)
+	gg.Parent = gloss
+	gloss.Parent = face
 
-	local function press(down: boolean)
-		TweenService:Create(face, TweenInfo.new(0.06), { Position = UDim2.fromOffset(0, down and depth - 1 or 0) }):Play()
+	UIKit.shineSweep(face, radius, props.shineInterval)
+
+	local hovered, pressed = false, false
+	local function refresh()
+		tween(scale, 0.14, { Scale = pressed and 0.95 or (hovered and 1.07 or 1) }, Enum.EasingStyle.Back)
+		tween(face, 0.06, { Position = UDim2.fromOffset(0, pressed and depth - 1 or 0) })
 	end
-	face.MouseButton1Down:Connect(function()
-		press(true)
-	end)
-	face.MouseButton1Up:Connect(function()
-		press(false)
+	face.MouseEnter:Connect(function()
+		hovered = true
+		refresh()
 	end)
 	face.MouseLeave:Connect(function()
-		press(false)
+		hovered, pressed = false, false
+		refresh()
+	end)
+	face.MouseButton1Down:Connect(function()
+		pressed = true
+		refresh()
+	end)
+	face.MouseButton1Up:Connect(function()
+		pressed = false
+		refresh()
+	end)
+	face.Activated:Connect(function()
+		pressed = false
+		refresh()
 	end)
 
 	root.Parent = parent
-	return face, root
+	return { root = root, face = face }
 end
 
--- Tints an existing UIKit.button to a new colour.
-function UIKit.setButtonColor(root: Frame, color: Color3)
-	local face = root:FindFirstChild("Face")
-	local lip = root:FindFirstChild("Lip") :: Frame?
-	if face then
-		local g = face:FindFirstChildOfClass("UIGradient")
-		if g then
-			g.Color = ColorSequence.new(lighter(color, 0.25), color)
-		end
+-- Re-tints a UIKit.button (only call on change, not every frame).
+function UIKit.setButtonColor(button, color: Color3)
+	local g = button.face:FindFirstChildOfClass("UIGradient")
+	if g then
+		g.Color = ColorSequence.new(lighter(color, 0.3), color)
 	end
+	local lip = button.root:FindFirstChild("Lip") :: Frame?
 	if lip then
 		lip.BackgroundColor3 = darker(color, 0.55)
 	end
 end
 
--- Uniform scaling for small screens (phones) and large monitors. Each HUD area is a container
--- anchored to its screen corner/edge; a UIScale on it scales around that anchor.
+-- Scale bounce, e.g. when a value changes.
+function UIKit.pop(obj: GuiObject, amount: number?)
+	local s = obj:FindFirstChild("PopScale") :: UIScale?
+	if not s then
+		s = Instance.new("UIScale")
+		s.Name = "PopScale"
+		s.Parent = obj
+	end
+	local scale = s :: UIScale
+	scale.Scale = 1 + (amount or 0.18)
+	tween(scale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+end
+
+-- Uniform scaling for phones and large monitors: each HUD area is anchored to its screen
+-- edge, a UIScale on it scales around that anchor.
 function UIKit.autoScale(containers: { GuiObject })
 	local camera = workspace.CurrentCamera
 	local scales = {}
@@ -223,7 +331,6 @@ function UIKit.autoScale(containers: { GuiObject })
 	update()
 end
 
--- Invisible container anchored at a screen position (used as a HUD area).
 function UIKit.area(parent: Instance, name: string, size: UDim2, position: UDim2, anchor: Vector2): Frame
 	local f = Instance.new("Frame")
 	f.Name = name
