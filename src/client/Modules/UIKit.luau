@@ -344,6 +344,109 @@ function UIKit.autoScale(containers: { GuiObject })
 	update()
 end
 
+-- Glossy progress bar: dark rounded track, gradient fill with a highlight stripe, centred label.
+-- Returns { root, fill, label, set(fraction, text?, color?) }; fill animates.
+UIKit.BarGold = { Color3.fromRGB(255, 225, 90), Color3.fromRGB(240, 150, 20) }
+UIKit.BarGreen = { Color3.fromRGB(150, 255, 120), Color3.fromRGB(60, 190, 50) }
+UIKit.BarPurple = { Color3.fromRGB(215, 160, 255), Color3.fromRGB(140, 70, 230) }
+UIKit.BarPink = { Color3.fromRGB(255, 160, 220), Color3.fromRGB(225, 70, 160) }
+function UIKit.progressBar(parent: Instance, props: { [string]: any })
+	local radius = props.radius or 10
+	local track = Instance.new("Frame")
+	track.Name = props.name or "Bar"
+	track.BackgroundColor3 = Color3.fromRGB(20, 14, 40)
+	track.Size = props.size or UDim2.new(1, 0, 0, 22)
+	track.Position = props.position or UDim2.new()
+	track.AnchorPoint = props.anchor or Vector2.zero
+	track.ZIndex = props.z or 4
+	UIKit.corner(track, radius)
+	UIKit.stroke(track, props.stroke or 2.5)
+	track.Parent = parent
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.BackgroundColor3 = Color3.new(1, 1, 1)
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.ZIndex = track.ZIndex + 1
+	UIKit.corner(fill, radius)
+	local colors = props.colors or UIKit.BarGold
+	local grad = UIKit.gradient(fill, colors[1], colors[2])
+	fill.Parent = track
+	local shine = Instance.new("Frame")
+	shine.Name = "Shine"
+	shine.BackgroundColor3 = Color3.new(1, 1, 1)
+	shine.BackgroundTransparency = 0.6
+	shine.BorderSizePixel = 0
+	shine.Size = UDim2.new(1, -8, 0.22, 0)
+	shine.Position = UDim2.new(0, 4, 0.12, 0)
+	shine.ZIndex = fill.ZIndex
+	UIKit.corner(shine, radius)
+	shine.Parent = fill
+	local label = UIKit.text(track, {
+		text = props.text or "", bold = true, size = UDim2.new(1, -10, 0.86, 0), position = UDim2.fromScale(0.5, 0.5),
+		anchor = Vector2.new(0.5, 0.5), z = track.ZIndex + 2, strokeThickness = 2,
+	})
+	local bar = { root = track, fill = fill, label = label }
+	function bar.set(fraction: number, text: string?, newColors: { Color3 }?)
+		local f = math.clamp(fraction, 0, 1)
+		fill.Visible = f > 0
+		UIKit.tween(fill, 0.35, { Size = UDim2.fromScale(math.max(f, 0.06), 1) }, Enum.EasingStyle.Quart)
+		if text then
+			label.Text = text
+		end
+		if newColors then
+			grad.Color = ColorSequence.new(newColors[1], newColors[2])
+		end
+	end
+	return bar
+end
+
+-- Darker recessed area inside a panel (groups content visually).
+function UIKit.inset(parent: Instance, props: { [string]: any }): Frame
+	local f = Instance.new("Frame")
+	f.Name = props.name or "Inset"
+	f.BackgroundColor3 = props.color or Color3.fromRGB(24, 17, 46)
+	f.BackgroundTransparency = props.transparency or 0.35
+	f.Size = props.size or UDim2.fromScale(1, 1)
+	f.Position = props.position or UDim2.new()
+	f.AnchorPoint = props.anchor or Vector2.zero
+	f.ZIndex = props.z or 3
+	UIKit.corner(f, props.radius or 16)
+	local s = UIKit.stroke(f, 2, Color3.fromRGB(90, 70, 150))
+	s.Transparency = 0.4
+	f.Parent = parent
+	return f
+end
+
+-- Tilted rubber stamp ("DONE!", "NEW!", "MAX") that slams in with a bounce.
+function UIKit.stamp(parent: Instance, props: { [string]: any })
+	local s = UIKit.pill(parent, {
+		name = props.name or "Stamp", size = props.size or UDim2.fromOffset(110, 38), position = props.position, anchor = props.anchor or Vector2.new(0.5, 0.5),
+		radius = 12, top = props.top or Color3.fromRGB(150, 255, 120), bottom = props.bottom or Color3.fromRGB(60, 180, 50),
+	})
+	s.holder.Rotation = props.rotation or -8
+	s.holder.ZIndex = props.z or 9
+	UIKit.text(s.body, { text = props.text or "", bold = true, size = UDim2.new(1, -10, 0.66, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5), strokeThickness = 2.5 })
+	if props.slam ~= false then
+		local sc = Instance.new("UIScale")
+		sc.Scale = 2
+		sc.Parent = s.holder
+		tween(sc, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+	end
+	return s
+end
+
+-- Styles a ScrollingFrame's scroll bar to match the kit.
+function UIKit.styleScroll(scroll: ScrollingFrame)
+	scroll.ScrollBarThickness = 8
+	scroll.ScrollBarImageColor3 = Color3.fromRGB(170, 140, 255)
+	scroll.ScrollBarImageTransparency = 0.2
+	scroll.TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
+	scroll.BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
+	scroll.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+	scroll.BorderSizePixel = 0
+	scroll.BackgroundTransparency = 1
+end
+
 function UIKit.area(parent: Instance, name: string, size: UDim2, position: UDim2, anchor: Vector2): Frame
 	local f = Instance.new("Frame")
 	f.Name = name
