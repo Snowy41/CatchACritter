@@ -16,6 +16,9 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local BaseService = {}
 
+-- set by Main: called after a critter was placed on a slot (onboarding hooks into this)
+BaseService.onDeposit = nil :: ((Player) -> ())?
+
 local carrying: { [Player]: { entry: Config.CritterEntry, model: Model, nest: string? } } = {}
 local lastFullWarning: { [Player]: number } = {}
 
@@ -245,6 +248,9 @@ local function tryDeposit(player: Player)
 	local slot = PlotService.slot(plot, index)
 	if slot then
 		FxService.toAll("Deposit", { pos = slot.Position + Vector3.new(0, slot.Size.Y / 2, 0), rarity = c.entry.rarity })
+	end
+	if BaseService.onDeposit then
+		BaseService.onDeposit(player)
 	end
 	notify(player, ("%s placed! +%s coins/s"):format(CritterDefs[c.entry.species].displayName, string.format("%.1f", incomeOf(c.entry))), "success")
 end

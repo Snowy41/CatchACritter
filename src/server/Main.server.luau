@@ -10,6 +10,7 @@ local BaseService = require(Services.BaseService)
 local CritterService = require(Services.CritterService)
 local ShopService = require(Services.ShopService)
 local GuardianService = require(Services.GuardianService)
+local EventService = require(Services.EventService)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
@@ -29,6 +30,8 @@ end
 CritterService.onNestCaught = GuardianService.onNestCaught
 CritterService.init()
 GuardianService.init()
+BaseService.onDeposit = EventService.onDeposit
+EventService.init()
 
 local requestCatch = Remotes:WaitForChild("RequestCatch") :: RemoteFunction
 local submitCatch = Remotes:WaitForChild("SubmitCatch") :: RemoteFunction
@@ -70,6 +73,7 @@ end
 
 Players.PlayerRemoving:Connect(function(player)
 	CritterService.releasePlayer(player)
+	EventService.release(player)
 	BaseService.onPlayerLeaving(player)
 	PlotService.release(player)
 	DataService.release(player)

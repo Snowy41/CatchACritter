@@ -100,6 +100,15 @@ Config.Guardians = {
 	},
 } :: { [string]: GuardianDef }
 
+-- Events
+Config.CritterOfTheHourBoost = 3 -- spawn weight multiplier for the featured species
+Config.LuckySpawnInterval = { 240, 420 } -- seconds between lucky spawns (min, max)
+Config.LuckySpawnWeights = { Rare = 85, Epic = 15 } :: { [string]: number }
+Config.LuckySpawnLifetime = 150 -- seconds before an uncaught lucky critter leaves
+Config.OnboardingRareDelay = 10 -- seconds after a newcomer's first deposit until their scripted Rare spawns
+Config.UpdateWeekday = 6 -- weekly update day (os.date wday: 1 = Sunday ... 6 = Friday)
+Config.UpdateHourUTC = 17 -- 18:00 CET
+
 -- Catching
 Config.CatchRange = 11
 Config.CatchTimeout = 8 -- seconds a critter stays frozen while the timing bar is open
@@ -108,7 +117,7 @@ Config.GuaranteedCatches = 3 -- the first N catches of a new player always succe
 -- Movement / upgrades
 Config.BaseWalkSpeed = 16
 Config.WalkSpeedPerLevel = 4
-Config.SpeedCosts = { 50, 250, 1000, 4000, 12000 } -- cost of level 1, 2, ...
+Config.SpeedCosts = { 25, 250, 1000, 4000, 12000 } -- cost of level 1, 2, ... (level 1 is cheap: first upgrade within ~30 s)
 
 -- Base
 Config.StartSlots = 6

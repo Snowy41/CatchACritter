@@ -48,7 +48,7 @@ end
 
 -- Rarity readability from far away: ground ring (Uncommon+), sparkles (Rare+), glow (Epic+),
 -- light pillar (Legendary+). Rings follow the model (welded to the root).
-local function applyRarityFx(model: Model, rarityName: string, beam: boolean)
+local function applyRarityFx(model: Model, rarityName: string, beam: boolean, beamMinTier: number)
 	local rarity = Config.RarityByName[rarityName]
 	local tier = RARITY_INDEX[rarityName] or 1
 	local root = model.PrimaryPart
@@ -97,7 +97,7 @@ local function applyRarityFx(model: Model, rarityName: string, beam: boolean)
 		light.Brightness = 1.5
 		light.Parent = root
 	end
-	if beam and tier >= 5 then
+	if beam and tier >= beamMinTier then
 		local a0 = Instance.new("Attachment")
 		a0.Parent = ring
 		local a1 = Instance.new("Attachment")
@@ -160,6 +160,7 @@ export type BuildOptions = {
 	label: boolean?,
 	fx: boolean?, -- rarity ring/sparkles (default true)
 	beam: boolean?, -- light pillar for Legendary+ (default false; wild critters use it)
+	beamMinTier: number?, -- lowest rarity tier that gets the pillar (default 5 = Legendary)
 }
 
 function CritterModels.build(entry: Config.CritterEntry, opts: BuildOptions?): Model
@@ -175,7 +176,7 @@ function CritterModels.build(entry: Config.CritterEntry, opts: BuildOptions?): M
 	end
 	applyMutation(model, entry.mutation)
 	if options.fx ~= false then
-		applyRarityFx(model, entry.rarity, options.beam == true)
+		applyRarityFx(model, entry.rarity, options.beam == true, options.beamMinTier or 5)
 	end
 	model:SetAttribute("Species", entry.species)
 	model:SetAttribute("Rarity", entry.rarity)

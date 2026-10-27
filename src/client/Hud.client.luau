@@ -267,7 +267,18 @@ local function setGuide(on: boolean)
 	b.TextureLength = 3
 	b.TextureSpeed = 2
 	b.Segments = 20
+	b.CurveSize0 = 8
+	b.CurveSize1 = -8
 	b.Parent = floor
+	local core = b:Clone()
+	core.Name = "GuideCore"
+	core.Texture = ""
+	core.Width0 = 0.6
+	core.Width1 = 0.6
+	core.Transparency = NumberSequence.new(0.1, 0.4)
+	core.LightEmission = 0.25
+	core.Color = ColorSequence.new(Color3.fromRGB(80, 220, 60))
+	core.Parent = b
 	guide = b
 end
 

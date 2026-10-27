@@ -37,6 +37,7 @@ type Wild = {
 	fleeUntil: number,
 	frozenBy: Player?,
 	nest: string?, -- zone of the guarded nest this critter sits in (nil = free-roaming)
+	special: boolean?, -- lucky/onboarding spawn: extra, not counted, leaves after a while
 }
 
 local rng = Random.new()
@@ -87,7 +88,21 @@ local function rollEntry(zone: string, inNest: boolean?): Config.CritterEntry?
 	if not list or #list == 0 then
 		return nil
 	end
-	local species = list[rng:NextInteger(1, #list)]
+	-- Critter of the Hour gets a boosted spawn weight
+	local featured = workspace:GetAttribute("CritterOfTheHour")
+	local total = 0
+	for _, sp in ipairs(list) do
+		total += (sp == featured) and Config.CritterOfTheHourBoost or 1
+	end
+	local pick = rng:NextNumber() * total
+	local species = list[#list]
+	for _, sp in ipairs(list) do
+		pick -= (sp == featured) and Config.CritterOfTheHourBoost or 1
+		if pick <= 0 then
+			species = sp
+			break
+		end
+	end
 	local def = CritterDefs[species]
 	-- weight: mostly close to average, occasionally much heavier/lighter
 	local factor = 0.7 + 0.7 * (rng:NextNumber() + rng:NextNumber()) / 2
@@ -224,7 +239,9 @@ local function despawn(id: string, respawn: boolean?)
 	end
 	wild[id] = nil
 	w.model:Destroy()
-	if w.nest then
+	if w.special then
+		return -- extra spawn: nothing to refill
+	elseif w.nest then
 		nestCount[w.nest] -= 1
 		if respawn ~= false then
 			task.delay(Config.NestRespawn, spawnNestCritter, w.nest)
@@ -238,6 +255,60 @@ end
 -- A critter dropped by a player (guardian bump) runs straight back into its nest.
 function CritterService.returnToNest(zone: string, entry: Config.CritterEntry)
 	spawnNestCritter(zone, entry)
+end
+
+-- Lucky / onboarding spawn: a free-roaming critter of a forced rarity, with a light pillar from
+-- Rare upward. `near` places it within ~25 studs of a position inside the zone's spawn areas.
+-- Returns the model and entry, or nil.
+function CritterService.spawnSpecial(zone: string, rarity: string, near: Vector3?): (Model?, Config.CritterEntry?)
+	local areas = areasByZone[zone]
+	local entry = rollEntry(zone)
+	if not areas or #areas == 0 or not entry then
+		return nil, nil
+	end
+	entry.rarity = rarity
+	local area = areas[rng:NextInteger(1, #areas)]
+	if near then
+		local best, bestD = area, math.huge
+		for _, a in ipairs(areas) do
+			local d = (a.Position - near).Magnitude
+			if d < bestD then
+				best, bestD = a, d
+			end
+		end
+		area = best
+	end
+	local start = near and clampToArea(area, near + Vector3.new(rng:NextNumber(-25, 25), 0, rng:NextNumber(-25, 25))) or randomPointIn(area)
+	local model = CritterModels.build(entry, { beam = true, beamMinTier = 3 })
+	local id = HttpService:GenerateGUID(false)
+	model:SetAttribute("CritterId", id)
+	model:SetAttribute("Zone", zone)
+	model:SetAttribute("Lucky", true)
+	local w: Wild = {
+		id = id,
+		model = model,
+		entry = entry,
+		rarity = Config.RarityByName[rarity],
+		zone = zone,
+		area = area,
+		pos = start,
+		target = start,
+		yaw = rng:NextNumber(0, math.pi * 2),
+		pauseUntil = os.clock() + 2,
+		fleeUntil = 0,
+		frozenBy = nil,
+		special = true,
+	}
+	place(w)
+	model.Parent = folder
+	wild[id] = w
+	task.delay(Config.LuckySpawnLifetime, function()
+		local still = wild[id]
+		if still and not still.frozenBy then
+			despawn(id)
+		end
+	end)
+	return model, entry
 end
 
 --------------------------------------------------------------------------- movement
