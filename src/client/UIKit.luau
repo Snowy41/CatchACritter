@@ -72,7 +72,11 @@ function UIKit.text(parent: Instance, props: { [string]: any }): TextLabel
 	t.TextColor3 = props.color or Color3.new(1, 1, 1)
 	t.Text = props.text or ""
 	t.Size = props.size or UDim2.fromScale(1, 1)
-	t.Position = props.position or UDim2.new()
+	-- Optical centring: both fonts reserve descender space below the baseline, so capitals and
+	-- digits sit above the geometric centre. Shift the label down by a share of its own height.
+	local k = props.bold and 0.1 or 0.05
+	local sz = t.Size
+	t.Position = (props.position or UDim2.new()) + UDim2.new(0, 0, sz.Y.Scale * k, sz.Y.Offset * k)
 	t.AnchorPoint = props.anchor or Vector2.zero
 	t.TextXAlignment = props.alignX or Enum.TextXAlignment.Center
 	t.TextYAlignment = Enum.TextYAlignment.Center
