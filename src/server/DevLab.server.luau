@@ -11,12 +11,8 @@ local Players = game:GetService("Players")
 local Lab = workspace:WaitForChild("CritterLab")
 if not RunService:IsStudio() then
 	Lab:Destroy()
-	local data = game:GetService("ReplicatedStorage"):FindFirstChild("DevLabData")
-	if data then data:Destroy() end
 	return
 end
-local editPreview = Lab:FindFirstChild("EditPreview")
-if editPreview then editPreview:Destroy() end
 
 local Import = Lab:WaitForChild("Import")
 local Displays = Lab:WaitForChild("Displays")
