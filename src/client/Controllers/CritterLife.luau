@@ -1,5 +1,7 @@
 -- Procedural life for critters (client only, on top of their keyframe Idle):
---  * hop + forward lean while moving (stronger when fleeing), dust puffs from the feet
+--  * animation state: Run while moving (speed-scaled), Happy after a happy hop, else Idle
+--    (sets the local Anim / AnimSpeed attributes that CritterAnimator plays), dust from the feet
+--  * per-species ambient effects (pollen, clover leaves, bubbles, embers, ... - CritterDefs.fx)
 --  * "!" pop when a critter starts fleeing
 --  * head turns towards the nearest player close by
 --  * base critters do a happy hop with hearts every few seconds
@@ -25,6 +27,24 @@ function Controller.Start()
 	local camera = workspace.CurrentCamera
 	local INK = Color3.fromRGB(20, 14, 36)
 
+	-- Per-species ambient effects (CritterDefs[species].fx). `at` = part name to emit from.
+	local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
+	local SMOKE = "rbxasset://textures/particles/smoke_main.dds"
+	local SPECIES_FX: { [string]: { [string]: any } } = {
+		clover = { texture = SPARKLE, color = Color3.fromRGB(120, 230, 90), rate = 1.2, runRate = 6, size = 0.3, lifetime = 1.2, speed = 1, accel = Vector3.new(0, -1, 0), at = "Head" },
+		pollen = { texture = SPARKLE, color = Color3.fromRGB(255, 225, 90), rate = 2, runRate = 10, size = 0.25, lifetime = 1, speed = 0.6, accel = Vector3.new(0, 0.6, 0), light = 1 },
+		bubbles = { texture = Textures.Ring, color = Color3.fromRGB(190, 240, 255), rate = 1.2, runRate = 2, size = 0.35, lifetime = 1.6, speed = 1.2, accel = Vector3.new(0, 1.2, 0), at = "Head" },
+		drips = { texture = SPARKLE, color = Color3.fromRGB(120, 200, 255), rate = 0.4, runRate = 9, size = 0.22, lifetime = 0.6, speed = 2, accel = Vector3.new(0, -12, 0) },
+		embers = { texture = SPARKLE, color = Color3.fromRGB(255, 140, 40), rate = 4, runRate = 14, size = 0.3, lifetime = 0.9, speed = 2, accel = Vector3.new(0, 3, 0), light = 1 },
+		smoke = { texture = SMOKE, color = Color3.fromRGB(90, 80, 80), rate = 1.5, runRate = 5, size = 0.9, lifetime = 1.4, speed = 1.5, accel = Vector3.new(0, 2, 0), transparency = 0.5 },
+		spores = { texture = SPARKLE, color = Color3.fromRGB(140, 255, 220), rate = 3, runRate = 8, size = 0.28, lifetime = 2, speed = 0.5, accel = Vector3.new(0, 0.4, 0), light = 1, at = "Head" },
+		petals = { texture = SPARKLE, color = Color3.fromRGB(255, 150, 210), rate = 2.5, runRate = 10, size = 0.35, lifetime = 1.6, speed = 1, accel = Vector3.new(0.5, -0.8, 0) },
+		stars = { texture = Textures.Sparkle, color = Color3.fromRGB(200, 230, 255), rate = 5, runRate = 14, size = 0.45, lifetime = 1.2, speed = 1, accel = Vector3.new(0, 0.5, 0), light = 1 },
+		shadow = { texture = SMOKE, color = Color3.fromRGB(60, 30, 90), rate = 4, runRate = 12, size = 1.1, lifetime = 1.2, speed = 0.8, accel = Vector3.new(0, 1, 0), transparency = 0.4 },
+		runes = { texture = Textures.Sparkle, color = Color3.fromRGB(120, 255, 230), rate = 2.5, runRate = 6, size = 0.4, lifetime = 1.8, speed = 0.6, accel = Vector3.new(0, 0.8, 0), light = 1 },
+	}
+	local SPECIES_DEFAULT_FX = { CloverBun = "clover", Buzzpup = "pollen", Croaklet = "bubbles", Snapjaw = "drips" }
+
 	type Life = {
 		model: Model,
 		root: BasePart,
@@ -49,6 +69,8 @@ function Controller.Start()
 		halo: BillboardGui?,
 		tier: number,
 		size: number,
+		fx: ParticleEmitter?,
+		fxPreset: { [string]: any }?,
 	}
 	local lives: { [Model]: Life } = {}
 
@@ -152,6 +174,34 @@ function Controller.Start()
 		dust.Transparency = NumberSequence.new(0.4, 1)
 		dust.Parent = att
 		life.dust = dust
+		-- species ambient effect
+		local species = model:GetAttribute("Species")
+		local defs = require(Shared:WaitForChild("CritterDefs"))
+		local key = (species and defs[species] and defs[species].fx) or SPECIES_DEFAULT_FX[species or ""]
+		local pr = key and SPECIES_FX[key]
+		if pr then
+			local src = (pr.at and model:FindFirstChild(pr.at, true)) or root
+			if not src:IsA("BasePart") then
+				src = root
+			end
+			local e = Instance.new("ParticleEmitter")
+			e.Name = "SpeciesFx"
+			e.Texture = pr.texture
+			e.Color = ColorSequence.new(pr.color)
+			e.Rate = pr.rate
+			e.Lifetime = NumberRange.new(pr.lifetime * 0.7, pr.lifetime)
+			e.Speed = NumberRange.new(pr.speed * 0.5, pr.speed)
+			e.SpreadAngle = Vector2.new(60, 60)
+			e.Acceleration = pr.accel
+			e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, pr.size), NumberSequenceKeypoint.new(1, 0) })
+			e.Transparency = NumberSequence.new(pr.transparency or 0.1, 1)
+			e.LightEmission = pr.light or 0
+			e.Rotation = NumberRange.new(0, 360)
+			e.RotSpeed = NumberRange.new(-60, 60)
+			e.Parent = src
+			life.fx = e
+			life.fxPreset = pr
+		end
 		-- hearts for happy hops (base critters)
 		if life.inBase then
 			local h = Instance.new("ParticleEmitter")
@@ -298,23 +348,29 @@ function Controller.Start()
 				end
 			end
 
-			-- body: hop + lean
-			if life.body and life.bodyC0 then
-				local hop = 0
-				local lean = 0
-				if speed > 1 then
-					local freq = 7 + speed * 0.5
-					life.phase += dt * freq
-					hop = math.abs(math.sin(life.phase)) * math.clamp(speed * 0.045, 0.12, 0.6) * life.size * 0.4
-					lean = -math.clamp(speed * 0.02, 0, 0.3)
-				end
-				local ht = now - life.happyT
-				if ht >= 0 and ht < 0.9 then
-					hop += math.abs(math.sin(ht / 0.9 * math.pi * 2)) * life.size * 0.25
-				end
-				-- hop along world up (the joint's own axes depend on how the rig was built)
-				local up = life.body.Part0 and (life.body.Part0.CFrame * life.bodyC0).Rotation:VectorToObjectSpace(Vector3.yAxis) or Vector3.yAxis
-				life.body.C0 = life.bodyC0 * CFrame.new(up * hop) * CFrame.Angles(lean, 0, 0)
+			-- animation state (local attribute; CritterAnimator plays it): Run while moving (faster
+			-- when fleeing), Happy for a moment after a happy hop, otherwise Idle
+			local anim = "Idle"
+			local animSpeed = 1
+			if speed > 1.5 then
+				anim = "Run"
+				animSpeed = math.clamp(speed / 9, 0.6, 2.2)
+			elseif now - life.happyT < 1 then
+				anim = "Happy"
+			end
+			if model:GetAttribute("Anim") ~= anim then
+				model:SetAttribute("Anim", anim)
+			end
+			if anim == "Run" and math.abs((model:GetAttribute("AnimSpeed") or 1) - animSpeed) > 0.15 then
+				model:SetAttribute("AnimSpeed", animSpeed)
+			elseif anim ~= "Run" and model:GetAttribute("AnimSpeed") ~= nil then
+				model:SetAttribute("AnimSpeed", nil)
+			end
+
+			-- species effect: idle rate, stronger while running
+			if life.fx and life.fxPreset then
+				local pr = life.fxPreset
+				life.fx.Rate = low and 0 or ((anim == "Run" and (pr.runRate or pr.rate) or pr.rate) or 0)
 			end
 
 			-- head: look towards a player close by

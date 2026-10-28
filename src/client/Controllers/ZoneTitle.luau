@@ -42,12 +42,19 @@ function Controller.Start()
 			return nil
 		end
 		local rarities = {}
+		local legends = false
 		for _, r in ipairs(Config.Rarities) do
-			if def.rarityWeights[r.name] then
+			local w = def.rarityWeights[r.name]
+			if w and w >= 1 then
 				table.insert(rarities, r.name)
+			elseif w then
+				legends = true
 			end
 		end
 		local s = table.concat(rarities, " & ") .. " critters"
+		if legends then
+			s ..= " (legends hide here too!)"
+		end
 		if def.guardian then
 			s ..= "  -  beware the " .. def.guardian.displayName .. "!"
 		end

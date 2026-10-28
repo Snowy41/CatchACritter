@@ -570,6 +570,22 @@ function CritterService.Init()
 end
 
 function CritterService.Start()
+	-- Studio test hook: Workspace attribute DevSpawn = "Zone:Rarity" (e.g. "Meadow:Mythic") spawns
+	-- that critter as a special spawn
+	if RunService:IsStudio() then
+		workspace:GetAttributeChangedSignal("DevSpawn"):Connect(function()
+			local v = workspace:GetAttribute("DevSpawn")
+			if typeof(v) ~= "string" then
+				return
+			end
+			workspace:SetAttribute("DevSpawn", nil)
+			local zone, rarity = string.match(v, "^(%w+):(%w+)$")
+			if zone and rarity then
+				local _, entry = CritterService.spawnSpecial(zone, rarity)
+				print(("[DevSpawn] %s %s -> %s"):format(zone, rarity, entry and (entry.species .. " " .. entry.rarity .. " " .. Config.mutationLabel(entry)) or "nothing"))
+			end
+		end)
+	end
 	for _, zone in Zones.each() do
 		if CritterService.hasSpecies(zone.name) then
 			for _ = 1, zone.wildCount do
