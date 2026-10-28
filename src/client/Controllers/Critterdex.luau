@@ -36,6 +36,7 @@ function Controller.Start()
 		Normal = Color3.fromRGB(70, 165, 255),
 		Shiny = Color3.fromRGB(255, 235, 130), Giant = Color3.fromRGB(255, 160, 100), Tiny = Color3.fromRGB(160, 200, 255),
 		Golden = Color3.fromRGB(255, 195, 40), Frozen = Color3.fromRGB(150, 215, 255), Rainbow = Color3.fromRGB(255, 120, 220),
+		Lava = Color3.fromRGB(255, 110, 40), Ghost = Color3.fromRGB(200, 225, 255),
 	}
 
 	-- top row: hint + overall progress

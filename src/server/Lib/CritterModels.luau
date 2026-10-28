@@ -47,6 +47,35 @@ local function applyWeather(model: Model, weather: string?)
 	if not weather then
 		return
 	end
+	if weather == "Lava" or weather == "Ghost" then
+		for _, p in ipairs(model:GetDescendants()) do
+			if p:IsA("BasePart") and p.Transparency < 1 and not KEEP_COLOUR[p.Name] and p.Name ~= "RarityRing" then
+				if weather == "Lava" then
+					p.Color = p.Color:Lerp(Color3.fromRGB(70, 30, 25), 0.55)
+				else
+					p.Color = p.Color:Lerp(Color3.fromRGB(200, 225, 255), 0.6)
+					p.Transparency = math.max(p.Transparency, 0.35)
+				end
+			end
+		end
+		local root = model.PrimaryPart
+		if root then
+			local e = Instance.new("ParticleEmitter")
+			e.Name = "WeatherFx"
+			e.Texture = weather == "Lava" and "rbxasset://textures/particles/sparkles_main.dds" or "rbxasset://textures/particles/smoke_main.dds"
+			e.Rate = weather == "Lava" and 10 or 5
+			e.Lifetime = NumberRange.new(0.8, 1.4)
+			e.Speed = NumberRange.new(1, 2.5)
+			e.EmissionDirection = Enum.NormalId.Top
+			e.SpreadAngle = Vector2.new(40, 40)
+			e.Size = weather == "Lava" and NumberSequence.new(0.35, 0) or NumberSequence.new(0.8, 1.8)
+			e.LightEmission = weather == "Lava" and 1 or 0.3
+			e.Color = ColorSequence.new(weather == "Lava" and Color3.fromRGB(255, 130, 40) or Color3.fromRGB(210, 230, 255))
+			e.Transparency = NumberSequence.new(weather == "Lava" and 0 or 0.6, 1)
+			e.Parent = root
+		end
+		return
+	end
 	local cf, size = model:GetBoundingBox()
 	local bottom = cf.Position.Y - size.Y / 2
 	for _, p in ipairs(model:GetDescendants()) do
@@ -178,7 +207,8 @@ local function nameplate(model: Model, entry: Config.CritterEntry, offsetY: numb
 	title.Font = Enum.Font.FredokaOne
 	title.TextScaled = true
 	title.TextColor3 = Color3.new(1, 1, 1)
-	title.Text = (entry.weather and (entry.weather .. " ") or "") .. (entry.mutation and (entry.mutation .. " ") or "") .. def.displayName
+	local label = Config.mutationLabel(entry)
+	title.Text = (label ~= "" and (label .. " ") or "") .. def.displayName
 	local stroke = Instance.new("UIStroke")
 	stroke.Thickness = 2
 	stroke.Parent = title
@@ -214,19 +244,27 @@ function CritterModels.build(entry: Config.CritterEntry, opts: BuildOptions?): M
 	local template = Templates:FindFirstChild(def.template) :: Model
 	local model = template:Clone()
 	model.Name = def.displayName
-	local mutation = entry.mutation and Config.MutationByName[entry.mutation]
-	local scale = (mutation and mutation.scale or 1) * (options.scale or 1)
+	local mutations = Config.mutationsOf(entry)
+	local scale = options.scale or 1
+	for _, name in ipairs(mutations) do
+		scale *= Config.MutationByName[name].scale or 1
+	end
 	if scale ~= 1 then
 		model:ScaleTo(scale)
 	end
-	applyMutation(model, entry.mutation)
-	applyWeather(model, entry.weather)
+	for _, name in ipairs(mutations) do
+		if Config.MutationByName[name].weather then
+			applyWeather(model, name)
+		else
+			applyMutation(model, name)
+		end
+	end
 	if options.fx ~= false then
 		applyRarityFx(model, entry.rarity, options.beam == true, options.beamMinTier or 5)
 	end
 	model:SetAttribute("Species", entry.species)
 	model:SetAttribute("Rarity", entry.rarity)
-	model:SetAttribute("Mutation", entry.mutation)
+	model:SetAttribute("Mutation", #mutations > 0 and table.concat(mutations, " ") or nil)
 	model:SetAttribute("Weather", entry.weather)
 	model:SetAttribute("SizeKg", entry.sizeKg)
 	model:SetAttribute("RootHeight", (template:GetAttribute("RootHeight") or 0.2) * scale)

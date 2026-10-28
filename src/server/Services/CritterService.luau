@@ -77,15 +77,37 @@ local function rollRarity(weights: { [string]: number }): string
 	return "Common"
 end
 
-local function rollMutation(): string?
+-- Mutations at spawn: one main natural mutation roll, sometimes a second natural one, and
+-- rarely a weather mutation (Frozen, Rainbow, Lava, Ghost) that the critter already has.
+local function rollMutations(zone: string): (string?, { string }?, string?)
+	local main: string? = nil
 	local x = rng:NextNumber()
 	for _, m in ipairs(Config.Mutations) do
 		if x < m.chance then
-			return m.name
+			main = m.name
+			break
 		end
 		x -= m.chance
 	end
-	return nil
+	local extra: { string }? = nil
+	if main then
+		for _, m in ipairs(Config.Mutations) do
+			local conflicts = (main == "Giant" and m.name == "Tiny") or (main == "Tiny" and m.name == "Giant")
+			if m.chance > 0 and m.name ~= main and not conflicts and rng:NextNumber() < m.chance * Config.ExtraMutationFactor * 10 then
+				extra = { m.name }
+				break
+			end
+		end
+	end
+	local weather: string? = nil
+	for _, m in ipairs(Config.Mutations) do
+		local c = (m.spawnChance or 0) * (m.zoneBoost and m.zoneBoost[zone] or 1)
+		if c > 0 and rng:NextNumber() < c then
+			weather = m.name
+			break
+		end
+	end
+	return main, extra, weather
 end
 
 local function weightsFor(zone: string, inNest: boolean?): { [string]: number }
@@ -99,23 +121,34 @@ local function weightsFor(zone: string, inNest: boolean?): { [string]: number }
 	return def.rarityWeights
 end
 
-local function rollEntry(zone: string, inNest: boolean?): Config.CritterEntry?
-	local list = speciesByZone[zone]
-	if not list or #list == 0 then
+-- species of a zone that can spawn now with this rarity
+local function candidates(zone: string, rarity: string): { string }
+	local list = {}
+	for _, sp in ipairs(speciesByZone[zone] or {}) do
+		if CritterDefs.isAvailable(sp) and CritterDefs.allowsRarity(sp, rarity) then
+			table.insert(list, sp)
+		end
+	end
+	return list
+end
+
+-- Rolls a critter: rarity first (zone / nest weights, or forced), then a species allowed for that
+-- rarity (stepping the rarity down if no species fits), then mutations and size.
+local function rollEntry(zone: string, inNest: boolean?, forcedRarity: string?): Config.CritterEntry?
+	local tier = Config.tier(forcedRarity or rollRarity(weightsFor(zone, inNest)))
+	local list: { string } = {}
+	while tier >= 1 do
+		list = candidates(zone, Config.Rarities[tier].name)
+		if #list > 0 then
+			break
+		end
+		tier -= 1
+	end
+	if #list == 0 then
 		return nil
 	end
 	-- Critter of the Hour gets a boosted spawn weight
 	local featured = workspace:GetAttribute("CritterOfTheHour")
-	local available = {}
-	for _, sp in ipairs(list) do
-		if CritterDefs.isAvailable(sp) then
-			table.insert(available, sp)
-		end
-	end
-	if #available == 0 then
-		return nil
-	end
-	list = available
 	local total = 0
 	for _, sp in ipairs(list) do
 		total += (sp == featured) and Config.CritterOfTheHourBoost or 1
@@ -132,10 +165,13 @@ local function rollEntry(zone: string, inNest: boolean?): Config.CritterEntry?
 	local def = CritterDefs[species]
 	-- weight: mostly close to average, occasionally much heavier/lighter
 	local factor = 0.7 + 0.7 * (rng:NextNumber() + rng:NextNumber()) / 2
+	local main, extra, weather = rollMutations(zone)
 	return {
 		species = species,
-		rarity = rollRarity(weightsFor(zone, inNest)),
-		mutation = rollMutation(),
+		rarity = Config.Rarities[tier].name,
+		mutation = main,
+		extra = extra,
+		weather = weather,
 		sizeKg = math.floor(def.baseKg * factor * 10 + 0.5) / 10,
 	}
 end
@@ -297,11 +333,10 @@ end
 -- Returns the model and entry, or nil.
 function CritterService.spawnSpecial(zone: string, rarity: string, near: Vector3?): (Model?, Config.CritterEntry?)
 	local areas = areasByZone[zone]
-	local entry = rollEntry(zone)
+	local entry = rollEntry(zone, false, rarity)
 	if not areas or #areas == 0 or not entry then
 		return nil, nil
 	end
-	entry.rarity = rarity
 	local area = areas[rng:NextInteger(1, #areas)]
 	if near then
 		local best, bestD = area, math.huge
@@ -323,7 +358,7 @@ function CritterService.spawnSpecial(zone: string, rarity: string, near: Vector3
 		id = id,
 		model = model,
 		entry = entry,
-		rarity = Config.RarityByName[rarity],
+		rarity = Config.RarityByName[entry.rarity],
 		zone = zone,
 		area = area,
 		pos = start,

@@ -20,7 +20,8 @@ local TOPIC = "GlobalCatch"
 local serverId = game.JobId ~= "" and game.JobId or "studio"
 
 local function describe(entry: Config.CritterEntry): string
-	return ("%s%s %s"):format(entry.mutation and (string.upper(entry.mutation) .. " ") or "", string.upper(entry.rarity), CritterDefs[entry.species].displayName)
+	local label = Config.mutationLabel(entry)
+	return ("%s%s %s"):format(label ~= "" and (string.upper(label) .. " ") or "", string.upper(entry.rarity), CritterDefs[entry.species].displayName)
 end
 
 local function celebrate(player: Player, entry: Config.CritterEntry, verb: string)

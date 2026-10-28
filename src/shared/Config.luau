@@ -38,18 +38,31 @@ function Config.tier(rarityName: string?): number
 	return r and r.tier or 1
 end
 
-export type Mutation = { name: string, chance: number, incomeMult: number, scale: number?, weather: string? }
+export type Mutation = {
+	name: string,
+	chance: number, -- spawn chance of a natural mutation (first roll)
+	incomeMult: number,
+	scale: number?,
+	weather: string?, -- weather that grants it to base critters (weather mutations)
+	spawnChance: number?, -- weather mutations: chance a wild critter already spawns with it
+	zoneBoost: { [string]: number }?, -- spawnChance multiplier per zone
+}
 
--- Natural mutations (at most one per critter) and weather mutations (rolled on base critters
--- while their owner is online during that weather; a critter can carry one of each).
+-- Natural mutations and weather mutations. A critter can carry several: one natural mutation
+-- from the main roll, sometimes a second natural one (Config.ExtraMutationFactor), and one
+-- weather mutation - gained in a base during weather or (rarely) already at spawn.
+-- Always read them through Config.mutationsOf(entry).
 Config.Mutations = {
 	{ name = "Shiny", chance = 0.04, incomeMult = 2 },
 	{ name = "Giant", chance = 0.02, incomeMult = 3, scale = 1.6 },
 	{ name = "Tiny", chance = 0.02, incomeMult = 3, scale = 0.6 },
 	{ name = "Golden", chance = 0.005, incomeMult = 10 },
-	{ name = "Frozen", chance = 0, incomeMult = 8, weather = "Snowstorm" },
-	{ name = "Rainbow", chance = 0, incomeMult = 20, weather = "RainbowStorm" },
+	{ name = "Frozen", chance = 0, incomeMult = 8, weather = "Snowstorm", spawnChance = 0.003 },
+	{ name = "Rainbow", chance = 0, incomeMult = 20, weather = "RainbowStorm", spawnChance = 0.0015 },
+	{ name = "Lava", chance = 0, incomeMult = 12, weather = "SolarFlare", spawnChance = 0.002, zoneBoost = { Volcano = 5 } },
+	{ name = "Ghost", chance = 0, incomeMult = 15, weather = "BloodMoon", spawnChance = 0.0015, zoneBoost = { Swamp = 3 } },
 } :: { Mutation }
+Config.ExtraMutationFactor = 0.15 -- chance factor for a second natural mutation on top of the first
 
 Config.MutationByName = {} :: { [string]: Mutation }
 for _, m in ipairs(Config.Mutations) do
@@ -132,23 +145,44 @@ Config.AutosaveInterval = 120
 export type CritterEntry = {
 	species: string,
 	rarity: string,
-	mutation: string?, -- natural mutation
-	weather: string?, -- weather mutation (Frozen, Rainbow, ...)
+	mutation: string?, -- main natural mutation
+	extra: { string }?, -- further natural mutations (rare double mutations)
+	weather: string?, -- weather mutation (Frozen, Rainbow, Lava, Ghost)
 	sizeKg: number,
 }
+
+-- All mutations of a critter in display order (natural first, weather last), without duplicates.
+function Config.mutationsOf(entry: CritterEntry): { string }
+	local list, seen = {}, {}
+	local function add(m: string?)
+		if m and not seen[m] and Config.MutationByName[m] then
+			seen[m] = true
+			table.insert(list, m)
+		end
+	end
+	add(entry.mutation)
+	for _, m in ipairs(entry.extra or {}) do
+		add(m)
+	end
+	add(entry.weather)
+	return list
+end
+
+-- "Shiny Giant" style label ("" when there are none).
+function Config.mutationLabel(entry: CritterEntry): string
+	return table.concat(Config.mutationsOf(entry), " ")
+end
 
 -- Coins per second produced by one critter in a base.
 function Config.income(entry: CritterEntry, baseIncome: number, baseKg: number): number
 	local rarity = Config.RarityByName[entry.rarity]
-	local mutation = entry.mutation and Config.MutationByName[entry.mutation]
-	local weather = entry.weather and Config.MutationByName[entry.weather]
+	local mult = 1
+	for _, name in ipairs(Config.mutationsOf(entry)) do
+		mult *= Config.MutationByName[name].incomeMult
+	end
 	local sizeNorm = math.clamp((entry.sizeKg / baseKg - 0.7) / 0.7, 0, 1)
 	local sizeFactor = 0.9 + 0.2 * sizeNorm -- size changes income only slightly (+-10 %)
-	return baseIncome
-		* (rarity and rarity.incomeMult or 1)
-		* (mutation and mutation.incomeMult or 1)
-		* (weather and weather.incomeMult or 1)
-		* sizeFactor
+	return baseIncome * (rarity and rarity.incomeMult or 1) * mult * sizeFactor
 end
 
 function Config.walkSpeed(speedLevel: number): number

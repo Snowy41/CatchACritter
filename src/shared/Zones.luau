@@ -50,7 +50,7 @@ Zones.Defs = {
 		requiredSpeed = 0,
 		requiredRebirth = 0,
 		wildCount = 16,
-		rarityWeights = { Common = 70, Uncommon = 30 },
+		rarityWeights = { Common = 70, Uncommon = 29.5, Legendary = 0.35, Mythic = 0.1, Secret = 0.04, Forgotten = 0.01 },
 		luckySpawns = true,
 		nest = { critters = 2, respawn = 25, rarityWeights = { Uncommon = 55, Rare = 40, Epic = 5 } },
 		guardian = {
@@ -76,7 +76,7 @@ Zones.Defs = {
 		requiredSpeed = 1,
 		requiredRebirth = 0,
 		wildCount = 14, -- spawns once Swamp species exist in CritterDefs
-		rarityWeights = { Uncommon = 60, Rare = 40 },
+		rarityWeights = { Uncommon = 60, Rare = 38.6, Legendary = 1, Mythic = 0.28, Secret = 0.09, Forgotten = 0.03 },
 		luckySpawns = false,
 		nest = nil,
 		guardian = nil,
@@ -87,7 +87,7 @@ Zones.Defs = {
 		requiredSpeed = 2,
 		requiredRebirth = 0,
 		wildCount = 12,
-		rarityWeights = { Rare = 75, Epic = 25 },
+		rarityWeights = { Rare = 72, Epic = 26.1, Legendary = 1.4, Mythic = 0.35, Secret = 0.11, Forgotten = 0.04 },
 		luckySpawns = false,
 		nest = nil,
 		guardian = nil,

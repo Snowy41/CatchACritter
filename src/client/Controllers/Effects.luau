@@ -221,18 +221,18 @@ function Controller.Start()
 			if d.mutation then
 				task.wait(0.25)
 				local stamp = UIKit.pill(holder, {
-					name = "Stamp", size = UDim2.fromOffset(150, 40), position = UDim2.new(0, -6, 1, -18), anchor = Vector2.new(0, 0.5), radius = 12,
+					name = "Stamp", size = UDim2.fromOffset(150 + 70 * math.max(0, #(d.mutations or {}) - 1), 40), position = UDim2.new(0, -6, 1, -18), anchor = Vector2.new(0, 0.5), radius = 12,
 					top = Color3.fromRGB(255, 240, 140), bottom = Color3.fromRGB(240, 160, 30),
 				})
 				stamp.holder.Rotation = -8
 				stamp.holder.ZIndex = 9
-				UIKit.text(stamp.body, { text = string.upper(d.mutation) .. "!", bold = true, size = UDim2.new(1, -10, 0.68, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5) })
+				UIKit.text(stamp.body, { text = string.upper(table.concat(d.mutations or { d.mutation }, " + ")) .. "!", bold = true, size = UDim2.new(1, -10, 0.68, 0), position = UDim2.fromScale(0.5, 0.5), anchor = Vector2.new(0.5, 0.5) })
 				local s = Instance.new("UIScale")
 				s.Scale = 2.4
 				s.Parent = stamp.holder
 				UIKit.tween(s, 0.22, { Scale = 1 }, Enum.EasingStyle.Back)
 				VFX.sound(Sounds.Pop, 0.6, 0.8)
-				if d.mutation == "Giant" then
+				if table.find(d.mutations or { d.mutation }, "Giant") then
 					shake(0.45, 0.6)
 				end
 			end

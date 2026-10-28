@@ -23,7 +23,7 @@ local Dex = {}
 local ZONE_TITLES = { Meadow = "MeadowRanger", Swamp = "SwampStalker", Volcano = "VolcanoVeteran" }
 local MUTATION_TITLES = {
 	Shiny = "ShinyHunter", Giant = "GiantTamer", Tiny = "TinyFinder", Golden = "GoldDigger",
-	Frozen = "FrostKeeper", Rainbow = "RainbowChaser",
+	Frozen = "FrostKeeper", Rainbow = "RainbowChaser", Lava = "LavaLord", Ghost = "GhostWhisperer",
 }
 
 function Dex.key(species: string, variant: string?): string
@@ -33,11 +33,8 @@ end
 -- Every variant a caught/hatched/mutated critter counts for.
 function Dex.keysFor(entry: Config.CritterEntry): { string }
 	local keys = { Dex.key(entry.species, "Normal") }
-	if entry.mutation then
-		table.insert(keys, Dex.key(entry.species, entry.mutation))
-	end
-	if entry.weather then
-		table.insert(keys, Dex.key(entry.species, entry.weather))
+	for _, m in ipairs(Config.mutationsOf(entry)) do
+		table.insert(keys, Dex.key(entry.species, m))
 	end
 	return keys
 end
@@ -45,7 +42,7 @@ end
 local function speciesIn(zone: string): { string }
 	local list = {}
 	for id, def in pairs(CritterDefs) do
-		if table.find(def.zones, zone) then
+		if table.find(def.zones, zone) and not CritterDefs.isSpecial(id) then
 			table.insert(list, id)
 		end
 	end
@@ -79,6 +76,22 @@ for i, zone in Zones.each() do
 			id = "Zone_" .. zone.name, title = zone.displayName, kind = "Zone", keys = keys,
 			rewardCoins = 250 * i * i, rewardTitle = ZONE_TITLES[zone.name],
 		})
+	end
+end
+do
+	local legends = {}
+	for id in pairs(CritterDefs) do
+		if CritterDefs.isSpecial(id) then
+			table.insert(legends, id)
+		end
+	end
+	table.sort(legends)
+	if #legends > 0 then
+		local keys = {}
+		for _, sp in ipairs(legends) do
+			table.insert(keys, Dex.key(sp))
+		end
+		table.insert(Dex.Pages, { id = "Legends", title = "Legends", kind = "Zone", keys = keys, rewardCoins = 25000, rewardTitle = "LegendHunter" })
 	end
 end
 for _, m in ipairs(Config.Mutations) do

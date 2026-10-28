@@ -235,7 +235,8 @@ function BaseService.cardData(player: Player, entry: Config.CritterEntry, extra:
 	local d: { [string]: any } = {
 		name = CritterDefs[entry.species].displayName,
 		rarity = entry.rarity,
-		mutation = entry.mutation,
+		mutation = Config.mutationLabel(entry) ~= "" and Config.mutationLabel(entry) or nil,
+		mutations = Config.mutationsOf(entry),
 		sizeKg = entry.sizeKg,
 		income = incomeOf(entry) * BaseService.multiplierOf(player),
 	}

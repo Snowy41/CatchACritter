@@ -25,7 +25,9 @@ local onboarded: { [Player]: boolean } = {}
 local function speciesList(): { string }
 	local list = {}
 	for species in pairs(CritterDefs) do
-		table.insert(list, species)
+		if not CritterDefs.isSpecial(species) then
+			table.insert(list, species)
+		end
 	end
 	table.sort(list)
 	return list
